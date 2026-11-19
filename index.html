@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#8a3b2e">
+  <meta name="description" content="梅花易數線上排盤：數字、時間、物數起卦，體用生剋、月令旺衰、十應，配《周易》卦辭爻辭與彖象。">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="梅花易數">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>梅花易數排盤</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <h1>🌸 梅花易數排盤</h1>
+      <p class="sub">無故不占、不動不占 · 以《梅花易數》體用生剋、旺衰論斷，配《周易》卦辭爻辭</p>
+      <nav class="topnav">
+        <button type="button" id="btn-prefs">顯示項目</button>
+        <button type="button" id="btn-history">歷史紀錄</button>
+        <button type="button" id="btn-xiang">類象查詢</button>
+        <button type="button" id="btn-account" hidden>帳號</button>
+        <button type="button" id="btn-install" hidden>📲 安裝到手機</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- 顯示項目 -->
+    <section class="card" id="panel-prefs" hidden>
+      <h2>顯示項目</h2>
+      <p class="muted">勾選要在結果中顯示的內容，選擇會記在這個瀏覽器。</p>
+      <div class="checks" id="prefs-checks"></div>
+      <div class="row">
+        <label>月令算法
+          <select id="pref-monthMode">
+            <option value="solar">依節氣（立春換寅月，預設）</option>
+            <option value="lunar">依農曆月份（正月建寅）</option>
+          </select>
+        </label>
+        <label class="inline"><input type="checkbox" id="pref-autosave"> 起卦後自動存入歷史紀錄</label>
+      </div>
+    </section>
+
+    <!-- 起卦 -->
+    <section class="card">
+      <h2>起卦</h2>
+      <div class="row">
+        <label class="grow">占問事由
+          <input id="question" type="text" maxlength="100" placeholder="例如：明日面試是否順利？">
+        </label>
+        <label>類別
+          <select id="category">
+            <option>事業</option><option>財運</option><option>感情</option><option>健康</option>
+            <option>出行</option><option>學業</option><option>其他</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="tabs" role="tablist" id="method-tabs"></div>
+      <div id="method-form"></div>
+      <details id="ying-box">
+        <summary>十應（選填）：起卦當下的實際情況，可補充外應判斷</summary>
+        <div class="grid2" id="ying-fields"></div>
+        <p class="muted">依《梅花易數》十應（p.176-181）：以體卦為主，看外在事物屬何卦，再論生剋比和。日應會自動由日期算出，不必填。</p>
+      </details>
+      <p id="form-error" class="error" role="alert" hidden></p>
+      <button type="button" id="btn-cast" class="primary">開始起卦</button>
+    </section>
+
+    <!-- 結果 -->
+    <div id="result" aria-live="polite"></div>
+
+    <!-- 類象查詢 -->
+    <section class="card" id="panel-xiang" hidden>
+      <h2>卦應類象查詢</h2>
+      <p class="muted">《梅花易數》卷三〈卦應〉（p.183-198）。起卦當下見到的事物，可以在這裡查它屬於哪一卦，用作「外應」。</p>
+      <label>搜尋（例如：魚、老人、酒、東北、紅）<input id="xiang-q" type="search" autocomplete="off" placeholder="輸入關鍵字，留空則看各卦全文"></label>
+      <div class="tabs" id="xiang-tabs" role="tablist"></div>
+      <div id="xiang-body"></div>
+    </section>
+
+    <!-- 歷史 -->
+    <section class="card" id="panel-history" hidden>
+      <h2>歷史紀錄</h2>
+      <div class="row">
+        <button type="button" id="hist-export">匯出 JSON</button>
+        <button type="button" id="hist-clear" class="danger">清空本機紀錄</button>
+        <button type="button" id="hist-upload" hidden>上傳本機紀錄到雲端</button>
+        <span class="muted" id="hist-source"></span>
+      </div>
+      <ul class="history" id="history-list"></ul>
+    </section>
+
+    <!-- 帳號（Supabase，可選） -->
+    <section class="card" id="panel-account" hidden>
+      <h2>帳號與雲端同步</h2>
+      <div id="account-body"></div>
+    </section>
+  </main>
+
+  <footer class="wrap muted foot">
+    <details>
+      <summary>如何安裝成手機 App</summary>
+      <p><strong>iPhone（Safari）</strong>：點下方「分享」按鈕 → 「加入主畫面」。<br>
+         <strong>Android（Chrome）</strong>：點右上角選單 → 「安裝應用程式」或「加到主畫面」，或直接按上方「安裝到手機」。<br>
+         安裝後會全螢幕開啟，沒有網路也能排盤；歷史紀錄存在手機本機（登入雲端則可同步）。</p>
+    </details>
+    <p>斷語為依原書體用、旺衰規則所做的簡化推算，僅供娛樂與自我反思，不構成任何決策建議。</p>
+    <p>經文：傅佩榮《傅佩榮易經課》解卦手冊中的《周易》原文；規則：邵雍《梅花易數》（陳明點校）。</p>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/data-zhouyi.js"></script>
+  <script src="js/data-meihua.js"></script>
+  <script src="js/data-guaying.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
