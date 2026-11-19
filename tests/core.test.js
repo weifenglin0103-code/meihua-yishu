@@ -276,3 +276,17 @@ test("cast 帶出單一綜合結論與白話理由（四條，含體用、變化
   assert.equal(c2.overall.applied, true);
   assert.ok(c2.overall.shift >= 0);
 });
+
+test("一句話：評分與月令旺衰相反時會明講", () => {
+  const D2 = require("../js/data-meihua.js");
+  let good = 0, bad = 0;
+  for (let u = 1; u <= 8; u++) for (let l = 1; l <= 8; l++) for (let d = 1; d <= 6; d++)
+    ["2026-02-10", "2026-05-10", "2026-08-10", "2026-11-19"].forEach(day => {
+      const c = C.cast(C.fromManual(u, l, d), new Date(day + "T10:00:00+08:00"), "solar");
+      const st = c.analysis.tiState, li = C.LADDER.indexOf(c.overall.level), hl = c.summary.headline;
+      if (li >= 4 && (st === "囚" || st === "死")) { assert.ok(hl.includes("勿躁進"), hl); good++; }
+      else if (li <= 2 && (st === "旺" || st === "相")) { assert.ok(hl.includes("凶勢可緩"), hl); bad++; }
+      else assert.ok(!hl.includes("勿躁進") && !hl.includes("凶勢可緩"), hl);
+    });
+  assert.ok(good > 0 && bad > 0, "兩種情形都要實際出現過：" + good + "/" + bad);
+});

@@ -444,6 +444,10 @@
     reasons.push({ label: "外應", tone: overall.applied ? ying.combined.tone : "warn", text: overall.text });
     var headline = "綜合「" + overall.level + "」：" + REL_PHRASE[yi.rel.key] + (a.process ? "；" + a.process.replace(/。$/, "") : "") + "。";
     if (overall.applied && overall.shift !== 0) headline += "（外應" + overall.outer + "，由「" + overall.inner + "」調整）";
+    // 評分與月令旺衰方向相反時，在一句話中明講，避免結論卡與理由列互相矛盾
+    var li = LADDER.indexOf(overall.level);
+    if (li >= 4 && (st === "囚" || st === "死")) headline += "　但體卦" + ti.name + "於" + month.branch + "月為「" + st + "」，氣勢失位，宜謹慎、勿躁進。";
+    else if (li <= 2 && (st === "旺" || st === "相")) headline += "　不過體卦" + ti.name + "於" + month.branch + "月為「" + st + "」，得時令之助，凶勢可緩。";
     return { headline: headline, reasons: reasons };
   }
 
