@@ -290,3 +290,56 @@ test("一句話：評分與月令旺衰相反時會明講", () => {
     });
   assert.ok(good > 0 && bad > 0, "兩種情形都要實際出現過：" + good + "/" + bad);
 });
+
+test("白話資料：64 卦、每卦爻數與原文一致（乾坤各 7 條）、沒有空白也沒有照抄原文", () => {
+  const B = require("../js/data-baihua.js");
+  assert.equal(B.HEX.length, 64);
+  B.HEX.forEach((h, i) => {
+    const z = Z.HEXAGRAMS[i];
+    assert.ok(h[0] && h[0].length <= 14, z.full + " 主題");
+    assert.ok(h[1] && h[1].length >= 4 && h[1] !== z.guaci, z.full + " 卦辭白話");
+    assert.equal(h[2].length, z.yao.length, z.full + " 爻數");
+    h[2].forEach((y, k) => { assert.ok(y && y.length >= 4, z.full + " 爻" + (k + 1)); assert.notEqual(y, z.yao[k].text, z.full + " 爻" + (k + 1) + " 與原文相同"); });
+  });
+  assert.equal(B.HEX[0][2].length, 7); assert.equal(B.HEX[1][2].length, 7);
+  Object.keys(D.TRIGRAMS).forEach(id => assert.ok(B.TRI[id] && B.TRI[id].trait, "八卦 " + id));
+  C.LADDER.forEach(l => { assert.ok(B.LEVEL[l] && B.ADVICE_LEVEL[l], l); });
+  ["旺", "相", "休", "囚", "死"].forEach(s => assert.ok(B.MONTH[s], s));
+  ["bihe", "yongSheng", "tiKe", "tiSheng", "yongKe"].forEach(k => assert.ok(B.REL[k] && B.REL[k].head && B.ENDING[k] && B.ENDING_SHORT[k], k));
+});
+
+test("白話解讀：384 種卦爻 × 四季都能產生完整、不含文言術語堆疊的結果", () => {
+  const seasons = ["2026-02-10", "2026-05-10", "2026-08-10", "2026-11-19"];
+  const jargon = /用剋體|體生用|體剋用|用生體|比和|生體|剋體/;       // 分析用語不應直接出現在白話結論卡裡
+  seasons.forEach(day => {
+    for (let u = 1; u <= 8; u++) for (let l = 1; l <= 8; l++) for (let d = 1; d <= 6; d++) {
+      const c = C.cast(C.fromManual(u, l, d), new Date(day + "T10:00:00+08:00"), "solar");
+      const p = c.plain;
+      assert.ok(p.headline.startsWith("整體「" + c.overall.level + "」"), p.headline);
+      assert.ok(!jargon.test(p.headline), "一句話含術語：" + p.headline);
+      assert.equal(p.reasons.length, 4);
+      p.reasons.forEach(r => { assert.ok(r.text.length > 6 && ["good", "warn", "bad"].includes(r.tone)); assert.ok(!jargon.test(r.text), "理由含術語：" + r.text); });
+      assert.ok(p.advice.length >= 2 && p.advice.length <= 5);
+      assert.ok(p.stage.includes("第 " + d + " 爻"));
+      assert.ok(p.path.ben && p.path.hu && p.path.bian);
+    }
+  });
+});
+
+test("白話解讀：與計算結果一致（外應調整、月令提醒、先吉後凶）", () => {
+  const w = new Date("2026-11-19T10:00:00+08:00");
+  const none = C.cast(C.fromManual(2, 3, 1), w, "solar");
+  assert.ok(none.plain.reasons[3].text.includes("沒有填外在情況"));
+  const up = C.cast(C.fromManual(2, 3, 1), w, "solar", { people: "老人、父、尊長（乾）", omen: "good" });
+  if (up.overall.shift > 0) assert.ok(up.plain.headline.includes("外在情況也在幫你"));
+  // 月令提醒：找一個「偏吉但體卦為囚／死」的組合，一句話與建議都要提到
+  let found = 0;
+  for (let u = 1; u <= 8 && !found; u++) for (let l = 1; l <= 8 && !found; l++) for (let d = 1; d <= 6 && !found; d++) {
+    const c = C.cast(C.fromManual(u, l, d), w, "solar");
+    if (C.LADDER.indexOf(c.overall.level) >= 4 && (c.analysis.tiState === "囚" || c.analysis.tiState === "死")) {
+      found = 1; assert.ok(c.plain.headline.includes("力量偏弱")); assert.ok(c.plain.advice.some(t => t.includes("時機偏弱")));
+    }
+  }
+  assert.ok(found, "應該要存在偏吉但月令弱的組合");
+  assert.equal(C.plainHex(49).theme, "變革"); assert.ok(C.plainHex(49).yao.length === 6);
+});

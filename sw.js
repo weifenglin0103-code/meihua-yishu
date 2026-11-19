@@ -7,10 +7,10 @@
  * 更新流程：新版安裝後「先等待」，頁面會顯示「有新版本」橫幅；使用者按「立即更新」時，
  * 頁面傳來 SKIP_WAITING 訊息，新版才接手並重新載入（不會在使用中途悄悄換掉畫面）。
  */
-var VERSION = "meihua-v10";
+var VERSION = "meihua-v11";
 var ASSETS = [
   "./", "index.html", "manifest.webmanifest", "css/style.css",
-  "js/config.js", "js/data-zhouyi.js", "js/data-meihua.js", "js/data-guaying.js", "js/data-zi.js", "js/core.js", "js/app.js",
+  "js/config.js", "js/data-zhouyi.js", "js/data-meihua.js", "js/data-guaying.js", "js/data-baihua.js", "js/data-zi.js", "js/core.js", "js/app.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png", "icons/favicon.svg"
 ];
 

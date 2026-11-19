@@ -17,16 +17,17 @@
   var PREFS_KEY = "meihua.prefs.v1", HIST_KEY = "meihua.history.v1";
   // 結論卡一律顯示；以下為「依據」區塊的顯示開關
   var SHOW_ITEMS = [
-    ["text", "本卦卦辭、大象、動爻爻辭與小象"], ["tuan", "彖傳（解釋卦辭）"], ["tiyong", "體用生剋表"], ["month", "月令旺衰（旺相休囚死）"],
+    ["plain", "白話解讀（一看就懂的說明與建議）"], ["text", "本卦卦辭、大象、動爻爻辭與小象"], ["tuan", "彖傳（解釋卦辭）"], ["tiyong", "體用生剋表"], ["month", "月令旺衰（旺相休囚死）"],
     ["ying", "十應與外應"], ["verdict", "象意、應期與評分明細"], ["extra", "互卦、變卦的卦辭"],
     ["xiang", "體卦、用卦的類象"], ["steps", "起卦計算過程"], ["sources", "原書依據頁碼"]
   ];
   var DEFAULT_PREFS = {
     monthMode: "solar", dongMode: "sum", autosave: true,
     theme: "auto",               // 外觀：auto（跟隨系統）/ light / dark
-    lastMethod: "time",          // 記住上次使用的起卦方式；第一次預設「時間起卦」（不需輸入即可起卦）
-    open: { text: true },        // 依據區塊的展開狀態（預設只展開「卦辭與爻辭」）
-    show: { steps: true, text: true, tuan: true, extra: false, tiyong: true, month: true, verdict: true, ying: true, xiang: false, sources: false }
+    lastMethod: "number",        // 記住上次使用的起卦方式；預設「數字占」
+    mv: 2,                       // 起卦方式排序版本（版本 2：數字占、字占、時間占）
+    open: { plain: true },       // 依據區塊的展開狀態（預設只展開「白話解讀」；文言原文需要時再展開）
+    show: { plain: true, steps: true, text: true, tuan: true, extra: false, tiyong: true, month: true, verdict: true, ying: true, xiang: false, sources: false }
   };
   function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } }
@@ -34,7 +35,10 @@
     var p = JSON.parse(JSON.stringify(DEFAULT_PREFS));
     try {
       var s = JSON.parse(lsGet(PREFS_KEY) || "null");
-      if (s) { Object.assign(p, s, { show: Object.assign(p.show, s.show || {}), open: Object.assign({}, DEFAULT_PREFS.open, s.open || {}) }); }
+      if (s) {
+        Object.assign(p, s, { show: Object.assign(p.show, s.show || {}), open: Object.assign({}, DEFAULT_PREFS.open, s.open || {}) });
+        if (!s.mv || s.mv < 2) { p.lastMethod = "number"; p.mv = 2; p.open = { plain: true }; }   // 舊版預設存的是「時間起卦」與「展開卦辭」，改成新的預設
+      }
     } catch (e) { /* 用預設 */ }
     return p;
   }
@@ -76,13 +80,13 @@
   }
 
   // ---------- 起卦方式 ----------
-  // 前三個為常用方式；其餘收進「更多起卦方式」，降低第一眼的選擇負擔
+  // 前三個為常用方式（數字占、字占、時間占）；其餘收進「更多起卦方式」，降低第一眼的選擇負擔
   var METHODS = [
-    ["time", "時間起卦"], ["number", "數字起卦"], ["char", "字占"], ["random", "隨機起卦"], ["object", "物數／聲音"], ["manual", "手動指定"]
+    ["number", "數字占"], ["char", "字占"], ["time", "時間占"], ["random", "隨機起卦"], ["object", "物數／聲音"], ["manual", "手動指定"]
   ];
   var MAIN_COUNT = 3;
   var METHOD_LABEL = {}; METHODS.forEach(function (m) { METHOD_LABEL[m[0]] = m[1]; });
-  var method = METHODS.some(function (m) { return m[0] === prefs.lastMethod; }) ? prefs.lastMethod : "time";
+  var method = METHODS.some(function (m) { return m[0] === prefs.lastMethod; }) ? prefs.lastMethod : "number";
   function methodInMore(k) { return METHODS.slice(MAIN_COUNT).some(function (m) { return m[0] === k; }); }
   var moreOpen = methodInMore(method);
 
@@ -372,12 +376,15 @@
   function previewText(t, n) { t = String(t || ""); return t.length > n ? t.slice(0, n) + "…" : t; }
   function symOf(tone) { return tone === "good" ? "▲" : (tone === "bad" ? "▼" : "●"); }   // 不只靠顏色
 
+  // 白話行：只在「白話」開關開啟時顯示
+  function plainLine(t) { return prefs.show.plain && t ? '<span class="plain"><b>白話</b>：' + esc(t) + "</span>" : ""; }
+
   function textBlock(info, dong) {
-    var y = info.yao[dong - 1];
-    var out = "<blockquote><small>卦辭</small>" + esc(info.title) + "：" + esc(info.guaci) + "</blockquote>";
+    var y = info.yao[dong - 1], ph = C.plainHex(info.n);
+    var out = "<blockquote><small>卦辭</small>" + esc(info.title) + "：" + esc(info.guaci) + plainLine(ph.guaci) + "</blockquote>";
     if (prefs.show.tuan) out += "<blockquote><small>彖傳</small>" + esc(info.tuan) + "</blockquote>";
     out += "<blockquote><small>大象</small>" + esc(info.daxiang) + "</blockquote>";
-    if (y) out += "<blockquote><small>動爻　" + esc(y.pos) + "</small>" + esc(y.text) + "<br>象曰：" + esc(y.xiang) +
+    if (y) out += "<blockquote><small>動爻　" + esc(y.pos) + "</small>" + esc(y.text) + plainLine(ph.yao[dong - 1]) + "<br>象曰：" + esc(y.xiang) +
       (y.note ? '<small class="suppl">校註：' + esc(y.note) + "</small>" : "") + "</blockquote>";
     return out;
   }
@@ -420,7 +427,7 @@
   // 結果頁：上方「結論卡」（一個綜合吉凶 + 一句話 + 四條理由 + 三卦），下方「依據」預設折疊
   function renderResult(res, opts) {
     opts = opts || {};
-    var h = res.hexagram, a = res.analysis, m = res.month, show = prefs.show, o = res.overall, sm = res.summary, yg = res.ying;
+    var h = res.hexagram, a = res.analysis, m = res.month, show = prefs.show, o = res.overall, sm = res.plain, yg = res.ying;
     var benInfo = Z.HEXAGRAMS[h.num.ben - 1], huInfo = Z.HEXAGRAMS[h.num.hu - 1], bianInfo = Z.HEXAGRAMS[h.num.bian - 1];
     var y = benInfo.yao[h.dong - 1];
     var innerTone = C.levelTone(a.level), innerSym = C.levelSymbol(a.level);
@@ -440,6 +447,20 @@
       '<p class="muted meta">' + esc(res.record_question || "（未填事由）") + " · " + esc(METHOD_LABEL[res.divination.method] || "") + " · " + esc(fmtWhen(res.when)) + "</p></section>";
 
     // ---- 依據（可折疊）----
+    if (show.plain) {
+      var pn = sm.path, ph0 = C.plainHex(h.num.ben), pyao = ph0.yao[h.dong - 1];
+      out += sect("plain", "白話解讀", "現在處於" + sm.stage.replace(/（第 \d 爻）/, "") + "；" + previewText(sm.advice[0], 14),
+        "<h3>這一卦在說什麼</h3><p><strong>「" + esc(h.name.ben) + "」</strong>：" + esc(ph0.theme) + "。" + esc(ph0.guaci) + "</p>" +
+        "<h3>事情會怎麼走</h3>" +
+        '<ol class="path"><li><b>起點</b>' + esc(pn.ben) + '（' + esc(h.name.ben) + '）</li><li><b>過程</b>' + esc(pn.hu) + '（' + esc(h.name.hu) + '）</li><li><b>結局</b>' + esc(pn.bian) + '（' + esc(h.name.bian) + '）</li></ol>' +
+        "<p>" + esc(sm.process) + esc(sm.ending) + "</p>" +
+        "<h3>你現在的階段</h3><p>" + esc(sm.stage) + "。</p>" + (pyao ? '<p class="plain"><b>動爻白話</b>（' + esc(benInfo.yao[h.dong - 1].pos) + "）：" + esc(pyao) + "</p>" +
+          '<p class="muted">爻辭是這個階段的「提醒」，要和上面的整體判斷一起看：整體順利時，爻辭裡的警語就是該注意的地方；整體不順時，爻辭裡的好話就是可以抓住的轉機。</p>' : "") +
+        "<h3>給你的建議</h3><ul class=\"advice\">" + sm.advice.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" +
+        "<details><summary>名詞對照：體、用、互、變是什麼意思？</summary><dl class=\"terms\">" + sm.terms.map(function (t) { return "<dt>" + esc(t[0]) + "</dt><dd>" + esc(t[1]) + "</dd>"; }).join("") + "</dl>" +
+        "<p>這一盤：你是 " + esc(sm.you) + "；事情是 " + esc(sm.thing) + "。</p></details>" +
+        '<p class="muted">白話是依傳統規則推算後，用日常說法改寫的意譯，僅供參考與自我反思；原文與計算細節請看下方各區塊。</p>');
+    }
     if (show.text) {
       out += sect("text", "本卦：" + esc(h.name.ben) + "　卦辭與爻辭", y ? "動爻 " + y.pos + "：" + previewText(y.text, 16) : "卦辭、大象",
         textBlock(benInfo, h.dong) + '<p class="muted">梅花易數只有一個動爻，故以本卦動爻之爻辭為主，卦辭、大象為背景。</p>');
@@ -506,9 +527,9 @@
 
     if (show.extra) {
       out += sect("extra", "互卦與變卦的卦辭", "互 " + h.name.hu + " · 變 " + h.name.bian,
-        "<h3>互卦：" + esc(h.name.hu) + "（事之中間）</h3><blockquote>" + esc(huInfo.title) + "：" + esc(huInfo.guaci) + "</blockquote>" +
+        "<h3>互卦：" + esc(h.name.hu) + "（事之中間）</h3><blockquote>" + esc(huInfo.title) + "：" + esc(huInfo.guaci) + plainLine(C.plainHex(h.num.hu).guaci) + "</blockquote>" +
         (show.tuan ? "<blockquote><small>彖傳</small>" + esc(huInfo.tuan) + "</blockquote>" : "") +
-        "<h3>變卦：" + esc(h.name.bian) + "（事之終結）</h3><blockquote>" + esc(bianInfo.title) + "：" + esc(bianInfo.guaci) + "</blockquote>" +
+        "<h3>變卦：" + esc(h.name.bian) + "（事之終結）</h3><blockquote>" + esc(bianInfo.title) + "：" + esc(bianInfo.guaci) + plainLine(C.plainHex(h.num.bian).guaci) + "</blockquote>" +
         (show.tuan ? "<blockquote><small>彖傳</small>" + esc(bianInfo.tuan) + "</blockquote>" : "") +
         "<blockquote><small>變卦大象</small>" + esc(bianInfo.daxiang) + "</blockquote>");
     }
@@ -887,22 +908,33 @@
     }
 
     // 偵測到新版：顯示橫幅。按「立即更新」→ 通知新版接手 → 收到 controllerchange 後重新載入一次。
-    function showUpdate(worker) {
-      var warn = (last && !prefs.autosave) ? "（目前的結果尚未存入歷史紀錄，更新後會消失）" : "";
-      $("#update-msg").textContent = "有新版本可以使用。更新會重新載入畫面。" + warn;
-      $("#update-banner").hidden = false;
-      $("#update-now").onclick = function () {
-        updateRequested = true; $("#update-now").disabled = true; $("#update-now").textContent = "更新中…";
+    // 以彈窗（原生 <dialog>）提示：使用者按「立即更新」才會重新載入。
+    // 按「稍後再說」、Esc 或點窗外都視為稍後；同一次開啟 App 期間不再自動彈出（下次開啟或手動檢查會再提醒）。
+    var dismissed = false;
+    function showUpdate(worker, manual) {
+      if (dismissed && !manual) return;
+      var d = $("#update-dialog");
+      var warn = (last && !prefs.autosave) ? "目前的結果尚未存入歷史紀錄，更新後會消失。" : "";
+      $("#update-msg").textContent = "更新會重新載入畫面，只要幾秒鐘。" + warn;
+      var now = $("#update-now"); now.disabled = false; now.textContent = "立即更新";
+      var doUpdate = function () {
+        updateRequested = true; now.disabled = true; now.textContent = "更新中…";
         try { worker.postMessage({ type: "SKIP_WAITING" }); } catch (e) { /* 忽略 */ }
         setTimeout(function () { if (!reloading) { reloading = true; location.reload(); } }, 4000);   // 保險：4 秒後仍未切換就直接重載
       };
-      $("#update-later").onclick = function () { $("#update-banner").hidden = true; };
+      now.onclick = doUpdate;
+      var later = function () { dismissed = true; if (d.open) d.close(); };
+      $("#update-later").onclick = later;
+      d.oncancel = function () { dismissed = true; };                                   // Esc
+      d.onclick = function (e) { if (e.target === d) later(); };                        // 點窗外
+      if (typeof d.showModal === "function") { if (!d.open) d.showModal(); }
+      else if (window.confirm("有新版本可以使用。要現在更新嗎？（會重新載入畫面）")) doUpdate(); else dismissed = true;   // 不支援 dialog 的舊瀏覽器
     }
     function checkForUpdate(manual) {
       if (!reg) { if (manual) $("#check-update-msg").textContent = "目前無法檢查（離線、或尚未啟用離線功能）。"; return; }
       if (manual) $("#check-update-msg").textContent = "檢查中…";
       reg.update().then(function () {
-        if (reg.waiting && navigator.serviceWorker.controller) { showUpdate(reg.waiting); if (manual) $("#check-update-msg").textContent = "有新版本，請按畫面頂端的「立即更新」。"; }
+        if (reg.waiting && navigator.serviceWorker.controller) { showUpdate(reg.waiting, manual); if (manual) $("#check-update-msg").textContent = "有新版本，請在彈出的視窗按「立即更新」。"; }
         else if (manual) $("#check-update-msg").textContent = "已是最新版本。";
       }).catch(function () { if (manual) $("#check-update-msg").textContent = "檢查失敗（可能離線），稍後再試。"; });
     }

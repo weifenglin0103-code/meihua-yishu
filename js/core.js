@@ -1,11 +1,11 @@
 /* 梅花易數核心演算法（純函式，瀏覽器與 Node 通用） */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) {
-    module.exports = factory(require("./data-meihua.js"), require("./data-zhouyi.js"));
+    module.exports = factory(require("./data-meihua.js"), require("./data-zhouyi.js"), require("./data-baihua.js"));
   } else {
-    root.MeihuaCore = factory(root.MeihuaData, root.ZhouyiData);
+    root.MeihuaCore = factory(root.MeihuaData, root.ZhouyiData, root.BaihuaData);
   }
-})(this, function (D, Z) {
+})(this, function (D, Z, B) {
   var T = D.TRIGRAMS;
   var TZ = "Asia/Taipei"; // 時間起卦一律以臺北時間（UTC+8）計算
 
@@ -451,6 +451,57 @@
     return { headline: headline, reasons: reasons };
   }
 
+  // ---------- 白話解讀（給看不懂文言的人）----------
+  // 把體用互變、月令、外應、動爻階段，改寫成日常說法；所有字句來自 data-baihua.js，這裡只負責組合。
+  function plainReading(h, a, month, ying, overall) {
+    var ti = T[h.tiId], yong = T[h.yongId], P = B.TRI;
+    var yi = a.items[0], hu = [a.items[1], a.items[2]], bi = a.items[3];
+    var st = a.tiState;
+
+    // 過程：互卦（體互、用互）
+    var hg = hu.filter(function (x) { return x.rel.tone === "good"; }).length, hb = hu.filter(function (x) { return x.rel.tone === "bad"; }).length;
+    var process = hb === 2 ? "過程比較辛苦，阻力多。" : hg === 2 ? "過程中有助力，推進順利。" : hb === 1 && hg === 0 ? "過程中會遇到一些阻礙或消耗。" : hg === 1 && hb === 0 ? "過程中大致順利，有一點助力。" : "過程有起有落，要有心理準備。";
+    var ending = B.ENDING[bi.rel.key];
+    var turn = a.process ? (a.process.indexOf("先吉後凶") >= 0 ? "一開始順利，但後面會變差，要注意收尾。" : "一開始不順，但後面會好轉，先難後易。") : "";
+
+    // 一句話：等級 + 你與事情的關係 + 反向提醒
+    var li = LADDER.indexOf(overall.level);
+    // 「現在」（用卦與體的關係）與「最後」（變卦）：方向相反用「但」，相同用「而且」，其餘用「，」
+    var cur = yi.rel.tone, fin = bi.rel.tone;
+    var conj = (cur === "good" && fin === "bad") || (cur === "bad" && fin === "good") ? "，但" : (cur === fin && cur !== "warn" ? "，而且" : "，");
+    var headline = "整體「" + overall.level + "」——" + B.LEVEL[overall.level] + "。現在" + B.REL[yi.rel.key].head + conj + B.ENDING_SHORT[bi.rel.key] + "。";
+    if (overall.applied && overall.shift > 0) headline += "外在情況也在幫你，整體更好。";
+    if (overall.applied && overall.shift < 0) headline += "外在情況不太配合，要打點折扣。";
+    if (li >= 4 && (st === "囚" || st === "死")) headline += "不過以現在的月份看，你這一方力量偏弱，宜謹慎、勿躁進。";
+    else if (li <= 2 && (st === "旺" || st === "相")) headline += "不過以現在的月份看，你這一方力量不弱，壞的程度可以緩一些。";
+
+    var outer = overall.applied
+      ? (overall.shift > 0 ? "你填的外在情況對你有幫助，把整體往好的方向推了一級。" : overall.shift < 0 ? "你填的外在情況不太配合，把整體往壞的方向拉了一級。" : "你填的外在情況沒有明顯影響。")
+      : "你沒有填外在情況（方位、天氣、遇到的人等），所以這裡沒有加分或扣分。";
+    var reasons = [
+      { label: "你與事情", tone: yi.rel.tone, text: "你是「" + ti.name + "」（" + P[h.tiId].trait + "），事情是「" + yong.name + "」（" + P[h.yongId].trait + "）。" + B.REL[yi.rel.key].text },
+      { label: "發展", tone: bi.rel.tone === "bad" || hb === 2 ? "bad" : (bi.rel.tone === "good" && hb === 0 ? "good" : "warn"), text: process + ending + turn },
+      { label: "時機", tone: (st === "旺" || st === "相") ? "good" : (st === "休" ? "warn" : "bad"), text: B.MONTH[st] + "（以" + month.branch + "月來看）" },
+      { label: "外在", tone: overall.applied ? (overall.shift > 0 ? "good" : overall.shift < 0 ? "bad" : "warn") : "warn", text: outer }
+    ];
+
+    // 建議：等級 + 階段 + 發展 + 外在
+    var advice = [B.ADVICE_LEVEL[overall.level], B.ADVICE_STAGE[h.dong - 1]];
+    if (turn) advice.push(a.process.indexOf("先吉後凶") >= 0 ? "前半段順利時不要放鬆，把收尾做穩。" : "前面不順時先撐住，後面會慢慢好轉。");
+    if (st === "死" || st === "囚") advice.push("目前時機偏弱，重要的事可以等月份轉換、或先做準備。");
+    if (!overall.applied) advice.push("若想判斷更準，可以在起卦時補填當下的方位、天氣、遇到的人事物。");
+
+    return {
+      headline: headline, reasons: reasons, advice: advice, stage: B.STAGE[h.dong - 1],
+      you: ti.name + "（" + P[h.tiId].img + "）：" + P[h.tiId].trait, thing: yong.name + "（" + P[h.yongId].img + "）：" + P[h.yongId].trait,
+      path: { ben: B.HEX[h.num.ben - 1][0], hu: B.HEX[h.num.hu - 1][0], bian: B.HEX[h.num.bian - 1][0] },
+      terms: B.TERMS, process: process, ending: ending
+    };
+  }
+
+  // 某一卦的白話（供畫面取用）：{ theme, guaci, yao: [..] }
+  function plainHex(n) { var x = B.HEX[n - 1]; return { theme: x[0], guaci: x[1], yao: x[2] }; }
+
   // ---------- 一次完成：起卦結果 + 建卦 + 月令 + 分析 + 十應 + 綜合 ----------
   function cast(divination, whenDate, monthMode, yingInputs) {
     var h = buildHexagram(divination.upper, divination.lower, divination.dong);
@@ -460,7 +511,8 @@
     ying.combined = combineInnerOuter(a, ying);
     var overall = combineOverall(a, ying);
     var summary = summarize(h, a, month, ying, overall);
-    return { divination: divination, hexagram: h, month: month, analysis: a, ying: ying, overall: overall, summary: summary, when: whenDate, yingInputs: yingInputs || {} };
+    var plain = plainReading(h, a, month, ying, overall);
+    return { divination: divination, hexagram: h, month: month, analysis: a, ying: ying, overall: overall, summary: summary, plain: plain, when: whenDate, yingInputs: yingInputs || {} };
   }
 
   return {
@@ -470,6 +522,7 @@
     fromNumbers: fromNumbers, fromYMDH: fromYMDH, fromDate: fromDate, fromObject: fromObject, fromManual: fromManual,
     randomInt: randomInt, analyze: analyze, levelOf: levelOf, cast: cast, TZ: TZ,
     dayGanzhi: dayGanzhi, analyzeYing: analyzeYing, combineInnerOuter: combineInnerOuter,
+    plainHex: plainHex, plainReading: plainReading,
     LADDER: LADDER, levelTone: levelTone, levelSymbol: levelSymbol, combineOverall: combineOverall, summarize: summarize,
     hanChars: hanChars, charMethodFor: charMethodFor, fromOneChar: fromOneChar, fromCharStrokes: fromCharStrokes,
     fromCharTones: fromCharTones, fromCharCount: fromCharCount

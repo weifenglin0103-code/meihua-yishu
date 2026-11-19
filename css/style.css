@@ -128,14 +128,14 @@ button.danger { color: var(--bad); }
 /* 可折疊區塊（原生 details，鍵盤與螢幕閱讀器皆可用） */
 details { margin: var(--s2) 0; }
 summary { cursor: pointer; color: var(--muted); font-size: var(--fs-sm); min-height: var(--tap); display: flex; align-items: center; }
-details.sect { padding: 0; }
+details.sect { padding: 0 var(--card-pad); }   /* 保留卡片左右內距，摘要與內容才不會貼著邊框 */
 details.sect > summary { display: block; position: relative; padding: var(--s3) 36px var(--s3) 0; color: var(--ink); list-style: none; }
 details.sect > summary::-webkit-details-marker { display: none; }
 details.sect > summary::after { content: "＋"; position: absolute; right: 2px; top: var(--s3); font-size: 1.2rem; color: var(--muted); }
 details.sect[open] > summary::after { content: "－"; }
 .stitle { display: block; font-size: var(--fs-h2); font-weight: 700; line-height: 1.4; }
 .spreview { display: block; font-size: var(--fs-sm); color: var(--muted); margin-top: 2px; }
-.sbody { border-top: 1px solid var(--line); padding-top: var(--s3); }
+.sbody { border-top: 1px solid var(--line); padding: var(--s3) 0 var(--s2); }
 
 /* ---------- 卦象 ---------- */
 .hexcard { background: var(--soft); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s3) 10px; text-align: center; }
@@ -213,13 +213,27 @@ label.tone { color: var(--ink); }
 @media (display-mode: standalone) { body { overscroll-behavior-y: none; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
 
-/* 新版本提示橫幅（位於固定導覽列內，捲動時也看得到） */
-#update-banner {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap;
-  margin: var(--s2) max(var(--s4), calc((100% - 820px) / 2 + var(--s4))) 0;   /* 與內容左右對齊 */
-  padding: var(--s2) var(--s3); background: var(--ink); color: var(--bg); border-radius: var(--radius);
+/* 新版本彈窗（原生 dialog） */
+dialog#update-dialog {
+  border: 1px solid var(--line); border-radius: 16px; padding: var(--s6); background: var(--card); color: var(--ink);
+  width: min(92vw, 420px); box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
 }
-#update-banner[hidden] { display: none !important; }
-.update-actions { display: flex; gap: var(--s2); }
-#update-banner button { background: transparent; color: var(--bg); border: 1px solid var(--bg); font-weight: 700; }
-#update-banner .primary-sm { background: var(--bg); color: var(--ink); }
+dialog#update-dialog::backdrop { background: rgba(0, 0, 0, .55); }
+dialog#update-dialog h2 { margin: 0 0 var(--s2); }
+dialog#update-dialog p { margin: 0 0 var(--s4); }
+.dlg-actions { display: grid; gap: var(--s2); }
+.dlg-actions button.primary { margin-top: 0; }
+
+/* 白話說明 */
+.plain { display: block; margin-top: 6px; padding: 6px 10px; background: color-mix(in srgb, var(--accent) 10%, var(--card)); border-radius: 8px; font-size: var(--fs-sm); }
+.plain b { color: var(--accent); }
+/* 起點 → 過程 → 結局：每個階段各佔一行，不會在窄螢幕換行時把箭頭留在行首 */
+ol.path { list-style: none; margin: var(--s2) 0; padding: 0; display: grid; gap: 6px; }
+ol.path li { background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; font-size: var(--fs-sm); position: relative; }
+ol.path li + li::before { content: "↓"; position: absolute; left: 50%; top: -12px; color: var(--muted); font-size: .8rem; background: var(--card); padding: 0 4px; line-height: 1; }
+ol.path li b { color: var(--accent); margin-right: 6px; }
+ul.advice { margin: var(--s2) 0; padding-left: 1.3rem; }
+ul.advice li { margin: 4px 0; }
+.terms { display: grid; grid-template-columns: max-content 1fr; gap: var(--s1) var(--s3); font-size: var(--fs-sm); }
+.terms dt { font-weight: 700; }
+.terms dd { margin: 0; color: var(--muted); }
