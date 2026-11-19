@@ -22,6 +22,7 @@
   --radius: 12px; --tap: 44px; --card-pad: 18px;
   color-scheme: light dark;   /* 讓瀏覽器原生控制項（單選鈕、勾選框、捲軸、日期選擇器）跟著深淺色模式 */
 }
+/* 深色色票。共兩處（系統深色且未手動指定淺色／手動指定深色），內容必須一致（測試會檢查） */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #1b1916; --card: #26231f; --soft: #2d2a25; --ink: #ece6dc; --muted: #9d958a;
@@ -30,6 +31,15 @@
     --good: #6fcf97; --warn: #f2b84b; --bad: #ff8a80;
   }
 }
+:root[data-theme="dark"] {
+    --bg: #1b1916; --card: #26231f; --soft: #2d2a25; --ink: #ece6dc; --muted: #9d958a;
+    --line: #3a352e; --line-strong: #8a8276;           /* 對卡片 4.12、對柔底 3.77 */
+    --accent: #d98a6a; --accent-ink: #1b1916; --moving: #ff6b6b;
+    --good: #6fcf97; --warn: #f2b84b; --bad: #ff8a80;
+}
+/* 手動指定時，原生控制項也要跟著（跟隨系統時維持 light dark） */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -52,6 +62,8 @@ main:focus, h2:focus { outline: none; }
 /* ---------- 版面 ---------- */
 .wrap { max-width: 820px; margin: 0 auto; padding: 0 max(var(--s4), env(safe-area-inset-right)) 0 max(var(--s4), env(safe-area-inset-left)); }
 .top { padding: calc(20px + env(safe-area-inset-top)) 0 var(--s3); }
+.toprow { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.themebtn { flex: none; white-space: nowrap; }
 h1 { margin: 0; font-size: 1.7rem; letter-spacing: .04em; }
 h2 { margin: 0 0 var(--s3); font-size: var(--fs-h2); line-height: 1.4; }
 h3 { margin: var(--s4) 0 6px; font-size: var(--fs-base); }

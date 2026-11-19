@@ -23,6 +23,7 @@
   ];
   var DEFAULT_PREFS = {
     monthMode: "solar", dongMode: "sum", autosave: true,
+    theme: "auto",               // 外觀：auto（跟隨系統）/ light / dark
     lastMethod: "time",          // 記住上次使用的起卦方式；第一次預設「時間起卦」（不需輸入即可起卦）
     open: { text: true },        // 依據區塊的展開狀態（預設只展開「卦辭與爻辭」）
     show: { steps: true, text: true, tuan: true, extra: false, tiyong: true, month: true, verdict: true, ying: true, xiang: false, sources: false }
@@ -39,6 +40,29 @@
   }
   var prefs = loadPrefs();
   function savePrefs() { lsSet(PREFS_KEY, JSON.stringify(prefs)); }
+
+  // ---------- 外觀（淺色／深色）----------
+  var darkMQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  function isDarkNow() { return prefs.theme === "dark" || (prefs.theme !== "light" && !!(darkMQ && darkMQ.matches)); }
+  function applyTheme() {
+    var root = document.documentElement;
+    if (prefs.theme === "light" || prefs.theme === "dark") root.setAttribute("data-theme", prefs.theme); else root.removeAttribute("data-theme");
+    var dark = isDarkNow();
+    var btn = $("#theme-toggle");
+    if (btn) {
+      // 按鈕顯示「按下去會變成什麼」，並以文字（不只圖示）說明
+      btn.textContent = dark ? "☀️ 淺色" : "🌙 深色";
+      btn.setAttribute("aria-label", dark ? "切換為淺色模式" : "切換為深色模式");
+    }
+    var sel = $("#pref-theme"); if (sel) sel.value = prefs.theme;
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", dark ? "#1b1916" : "#8a3b2e");
+  }
+  function setTheme(t, announceIt) {
+    prefs.theme = t; savePrefs(); applyTheme();
+    if (announceIt) announce(t === "auto" ? "已改為跟隨系統" : t === "dark" ? "已切換為深色模式" : "已切換為淺色模式");
+  }
+  if (darkMQ && darkMQ.addEventListener) darkMQ.addEventListener("change", function () { if (prefs.theme === "auto") applyTheme(); });
 
   // ---------- 臺北時間輔助 ----------
   function nowLocalInputValue() {
@@ -763,6 +787,9 @@
   }
 
   function init() {
+    applyTheme();
+    $("#theme-toggle").addEventListener("click", function () { setTheme(isDarkNow() ? "light" : "dark", true); });
+    $("#pref-theme").addEventListener("change", function (e) { setTheme(e.target.value, true); });
     syncNavH();
     window.addEventListener("resize", syncNavH);
     window.addEventListener("orientationchange", syncNavH);
