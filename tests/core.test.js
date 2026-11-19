@@ -246,3 +246,33 @@ test("卦應詳細類象：八卦齊全、結構完整、與簡表五行方位�
   assert.ok(find(6, "禽獸").includes("豕"));
   assert.ok(find(3, "方所") === "正南" && find(2, "方所") === "西方" && find(4, "方所") === "正東" && find(6, "方所").startsWith("正北"));
 });
+
+test("綜合吉凶：外應只調整一級，並且有上下限；未填外應不調整", () => {
+  const mk = (level, outerLevel, answered) => C.combineOverall({ level }, { outerLevel, answered, combined: { text: "x" } });
+  assert.equal(mk("吉", "凶", 2).level, "小吉");     // 內吉外凶：吉被破
+  assert.equal(mk("小凶", "吉", 1).level, "平");     // 內凶外吉：凶可解
+  assert.equal(mk("吉", "吉", 1).level, "大吉");     // 內外皆吉
+  assert.equal(mk("凶", "凶", 1).level, "大凶");     // 內外皆凶
+  assert.equal(mk("大吉", "吉", 1).level, "大吉");   // 上限
+  assert.equal(mk("大凶", "凶", 1).level, "大凶");   // 下限
+  assert.equal(mk("吉", "平", 1).level, "吉");       // 外應平：不動
+  const none = mk("吉", "凶", 0);                    // 沒填外應（只有日應）：不調整
+  assert.equal(none.level, "吉"); assert.equal(none.applied, false); assert.equal(none.shift, 0);
+  assert.equal(C.levelTone("大吉"), "good"); assert.equal(C.levelTone("平"), "warn"); assert.equal(C.levelTone("小凶"), "bad");
+  assert.deepEqual(["大吉", "平", "凶"].map(C.levelSymbol), ["▲", "●", "▼"]);
+});
+
+test("cast 帶出單一綜合結論與白話理由（四條，含體用、變化、月令、外應）", () => {
+  const when = new Date("2026-11-19T10:00:00+08:00");
+  const c = C.cast(C.fromManual(2, 3, 1), when, "solar");       // 澤火革初爻：體兌金、用離火 → 用剋體
+  assert.ok(C.LADDER.includes(c.overall.level));
+  assert.equal(c.overall.inner, c.analysis.level);
+  assert.equal(c.summary.reasons.length, 4);
+  assert.deepEqual(c.summary.reasons.map(r => r.label), ["體用", "變化", "月令", "外應"]);
+  assert.ok(c.summary.headline.includes(c.overall.level));
+  assert.ok(c.summary.reasons[0].text.includes("用剋體"));
+  // 填了外應就可能調整；結論永遠只有一個
+  const c2 = C.cast(C.fromManual(2, 3, 1), when, "solar", { people: "老人、父、尊長（乾）", omen: "good" });
+  assert.equal(c2.overall.applied, true);
+  assert.ok(c2.overall.shift >= 0);
+});

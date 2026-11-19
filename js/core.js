@@ -407,14 +407,56 @@
     return { text: text, tone: tone };
   }
 
-  // ---------- 一次完成：起卦結果 + 建卦 + 月令 + 分析 + 十應 ----------
+  // ---------- 綜合吉凶（單一結論）----------
+  // 內卦（體用互變）給出基本等級；外應（十應）依〈十應目論〉（p.112）調整一級：
+  // 內外皆吉再進一級、皆凶再退一級；內吉外凶、內凶外吉則互相抵銷一級。
+  // 只有使用者真的填了外應（不含自動算出的日應）才會調整，避免僅憑日應改動結論。
+  var LADDER = ["大凶", "凶", "小凶", "平", "小吉", "吉", "大吉"];
+  function levelTone(level) { var i = LADDER.indexOf(level); return i >= 4 ? "good" : (i === 3 ? "warn" : "bad"); }
+  function levelSymbol(level) { var i = LADDER.indexOf(level); return i >= 4 ? "▲" : (i === 3 ? "●" : "▼"); } // 不只靠顏色：附符號
+  function combineOverall(a, ying) {
+    var i = LADDER.indexOf(a.level), applied = ying.answered > 0, shift = 0;
+    if (applied) { if (ying.outerLevel === "吉") shift = 1; else if (ying.outerLevel === "凶") shift = -1; }
+    var j = Math.max(0, Math.min(LADDER.length - 1, i + shift));
+    var level = LADDER[j];
+    return {
+      level: level, tone: levelTone(level), symbol: levelSymbol(level), inner: a.level, outer: ying.outerLevel,
+      shift: j - i, applied: applied,
+      text: applied ? ying.combined.text : "未填外應，綜合以體用互變為準（可在起卦區「進階」補填）。"
+    };
+  }
+
+  // 結論卡用的白話摘要：一句話 + 最多四條理由
+  var REL_PHRASE = { bihe: "比和，彼此相合，百事順遂", yongSheng: "用生體，有進益之喜", tiKe: "體剋用，諸事偏吉",
+                     tiSheng: "體生用，氣被洩耗", yongKe: "用剋體，諸事不利" };
+  function summarize(h, a, month, ying, overall) {
+    var ti = T[h.tiId], yong = T[h.yongId], yi = a.items[0], bi = a.items[3];
+    var reasons = [];
+    reasons.push({ label: "體用", tone: yi.rel.tone, text: "體" + ti.name + "（" + ti.elem + "）、用" + yong.name + "（" + yong.elem + "）：" + REL_PHRASE[yi.rel.key] + "。" });
+    var endText = a.process ? a.process
+      : (bi.rel.key === "bihe" || bi.rel.key === "yongSheng") ? "變卦（終局）" + bi.rel.label + "體卦，終局有利。"
+      : bi.rel.key === "yongKe" ? "變卦（終局）剋體，終局不利。"
+      : bi.rel.key === "tiSheng" ? "變卦（終局）耗洩體卦，後勢偏弱。" : "變卦（終局）受體卦剋制，局面可掌控。";
+    reasons.push({ label: "變化", tone: a.process ? "warn" : bi.rel.tone, text: endText });
+    var st = a.tiState;
+    reasons.push({ label: "月令", tone: (st === "旺" || st === "相") ? "good" : (st === "休" ? "warn" : "bad"),
+                   text: month.branch + "月（" + month.seasonName + "）：體卦" + ti.name + "（" + ti.elem + "）為「" + st + "」。" });
+    reasons.push({ label: "外應", tone: overall.applied ? ying.combined.tone : "warn", text: overall.text });
+    var headline = "綜合「" + overall.level + "」：" + REL_PHRASE[yi.rel.key] + (a.process ? "；" + a.process.replace(/。$/, "") : "") + "。";
+    if (overall.applied && overall.shift !== 0) headline += "（外應" + overall.outer + "，由「" + overall.inner + "」調整）";
+    return { headline: headline, reasons: reasons };
+  }
+
+  // ---------- 一次完成：起卦結果 + 建卦 + 月令 + 分析 + 十應 + 綜合 ----------
   function cast(divination, whenDate, monthMode, yingInputs) {
     var h = buildHexagram(divination.upper, divination.lower, divination.dong);
     var month = monthContext(whenDate, monthMode || "solar");
     var a = analyze(h, month);
     var ying = analyzeYing(h, whenDate, yingInputs);
     ying.combined = combineInnerOuter(a, ying);
-    return { divination: divination, hexagram: h, month: month, analysis: a, ying: ying, when: whenDate, yingInputs: yingInputs || {} };
+    var overall = combineOverall(a, ying);
+    var summary = summarize(h, a, month, ying, overall);
+    return { divination: divination, hexagram: h, month: month, analysis: a, ying: ying, overall: overall, summary: summary, when: whenDate, yingInputs: yingInputs || {} };
   }
 
   return {
@@ -424,6 +466,7 @@
     fromNumbers: fromNumbers, fromYMDH: fromYMDH, fromDate: fromDate, fromObject: fromObject, fromManual: fromManual,
     randomInt: randomInt, analyze: analyze, levelOf: levelOf, cast: cast, TZ: TZ,
     dayGanzhi: dayGanzhi, analyzeYing: analyzeYing, combineInnerOuter: combineInnerOuter,
+    LADDER: LADDER, levelTone: levelTone, levelSymbol: levelSymbol, combineOverall: combineOverall, summarize: summarize,
     hanChars: hanChars, charMethodFor: charMethodFor, fromOneChar: fromOneChar, fromCharStrokes: fromCharStrokes,
     fromCharTones: fromCharTones, fromCharCount: fromCharCount
   };

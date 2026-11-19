@@ -15,13 +15,16 @@
 
   // ---------- 設定（localStorage，可能被瀏覽器禁用，全部 try/catch）----------
   var PREFS_KEY = "meihua.prefs.v1", HIST_KEY = "meihua.history.v1";
+  // 結論卡一律顯示；以下為「依據」區塊的顯示開關
   var SHOW_ITEMS = [
-    ["steps", "起卦計算過程"], ["text", "本卦卦辭、大象、動爻爻辭與小象"], ["tuan", "彖傳（解釋卦辭）"], ["extra", "互卦、變卦的卦辭"],
-    ["tiyong", "體用生剋表"], ["month", "月令旺衰（旺相休囚死）"], ["verdict", "綜合斷語與評分明細"], ["ying", "十應（外應）與內外合斷"],
-    ["xiang", "體卦、用卦的類象"], ["sources", "原書依據頁碼"]
+    ["text", "本卦卦辭、大象、動爻爻辭與小象"], ["tuan", "彖傳（解釋卦辭）"], ["tiyong", "體用生剋表"], ["month", "月令旺衰（旺相休囚死）"],
+    ["ying", "十應與外應"], ["verdict", "象意、應期與評分明細"], ["extra", "互卦、變卦的卦辭"],
+    ["xiang", "體卦、用卦的類象"], ["steps", "起卦計算過程"], ["sources", "原書依據頁碼"]
   ];
   var DEFAULT_PREFS = {
     monthMode: "solar", dongMode: "sum", autosave: true,
+    lastMethod: "time",          // 記住上次使用的起卦方式；第一次預設「時間起卦」（不需輸入即可起卦）
+    open: { text: true },        // 依據區塊的展開狀態（預設只展開「卦辭與爻辭」）
     show: { steps: true, text: true, tuan: true, extra: false, tiyong: true, month: true, verdict: true, ying: true, xiang: false, sources: false }
   };
   function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
@@ -30,7 +33,7 @@
     var p = JSON.parse(JSON.stringify(DEFAULT_PREFS));
     try {
       var s = JSON.parse(lsGet(PREFS_KEY) || "null");
-      if (s) { Object.assign(p, s, { show: Object.assign(p.show, s.show || {}) }); }
+      if (s) { Object.assign(p, s, { show: Object.assign(p.show, s.show || {}), open: Object.assign({}, DEFAULT_PREFS.open, s.open || {}) }); }
     } catch (e) { /* 用預設 */ }
     return p;
   }
@@ -49,11 +52,15 @@
   }
 
   // ---------- 起卦方式 ----------
+  // 前三個為常用方式；其餘收進「更多起卦方式」，降低第一眼的選擇負擔
   var METHODS = [
-    ["number", "數字起卦"], ["time", "時間起卦"], ["char", "字占"], ["object", "物數／聲音"], ["random", "隨機起卦"], ["manual", "手動指定"]
+    ["time", "時間起卦"], ["number", "數字起卦"], ["char", "字占"], ["random", "隨機起卦"], ["object", "物數／聲音"], ["manual", "手動指定"]
   ];
+  var MAIN_COUNT = 3;
   var METHOD_LABEL = {}; METHODS.forEach(function (m) { METHOD_LABEL[m[0]] = m[1]; });
-  var method = "number";
+  var method = METHODS.some(function (m) { return m[0] === prefs.lastMethod; }) ? prefs.lastMethod : "time";
+  function methodInMore(k) { return METHODS.slice(MAIN_COUNT).some(function (m) { return m[0] === k; }); }
+  var moreOpen = methodInMore(method);
 
   function trigramOptions(sel) {
     return Object.keys(T).map(function (id) {
@@ -61,10 +68,36 @@
     }).join("");
   }
 
+  // 頁籤（WAI-ARIA Tabs 模式）：role=tab + aria-selected、只有目前頁籤在 Tab 順序內，方向鍵切換
   function renderTabs() {
-    $("#method-tabs").innerHTML = METHODS.map(function (m) {
-      return '<button type="button" role="tab" data-m="' + m[0] + '" aria-pressed="' + (m[0] === method) + '">' + m[1] + "</button>";
+    var list = moreOpen ? METHODS : METHODS.slice(0, MAIN_COUNT);
+    $("#method-tabs").innerHTML = list.map(function (m) {
+      var sel = m[0] === method;
+      return '<button type="button" role="tab" id="tab-' + m[0] + '" data-m="' + m[0] + '" aria-selected="' + sel +
+        '" aria-controls="method-form" tabindex="' + (sel ? 0 : -1) + '">' + m[1] + "</button>";
     }).join("");
+    var t = $("#more-toggle");
+    t.setAttribute("aria-expanded", String(moreOpen));
+    t.textContent = moreOpen ? "收起其他方式 ▴" : "更多起卦方式（隨機、物數／聲音、手動）▾";
+    t.hidden = moreOpen && methodInMore(method);   // 目前用的是「更多」裡的方式時，不顯示收起鈕
+    $("#method-form").setAttribute("aria-labelledby", "tab-" + method);
+  }
+  function selectMethod(k, focusTab) {
+    method = k; prefs.lastMethod = k; savePrefs(); showError("");
+    if (methodInMore(k)) moreOpen = true;
+    renderTabs(); renderForm();
+    if (focusTab) { var el = $("#tab-" + k); if (el) el.focus(); }
+  }
+  // 方向鍵／Home／End 在頁籤間移動（兩組頁籤共用）
+  function tabKeys(container, pick) {
+    container.addEventListener("keydown", function (e) {
+      var keys = { ArrowRight: 1, ArrowLeft: -1, Home: "first", End: "last" };
+      if (!(e.key in keys)) return;
+      var tabs = $$('[role="tab"]', container); if (!tabs.length) return;
+      var i = tabs.indexOf(document.activeElement); if (i < 0) return;
+      var d = keys[e.key], n = d === "first" ? 0 : d === "last" ? tabs.length - 1 : (i + d + tabs.length) % tabs.length;
+      e.preventDefault(); pick(tabs[n]);
+    });
   }
 
   function renderForm() {
@@ -221,26 +254,34 @@
 
   function collectChar() {
     var chars = C.hanChars($("#zi-text").value), n = chars.length, kind = C.charMethodFor(n);
-    if (kind === "none") { showError("請輸入至少一個漢字。"); return null; }
+    if (kind === "none") { showError("請輸入至少一個漢字。", $("#zi-text")); return null; }
     if (kind === "count") return C.fromCharCount(chars);
     var num = function (el) { var v = (el.value || "").trim(); return /^\d+$/.test(v) && +v >= 1 ? +v : null; };
     if (kind === "single") {
       var l = num($("#zi-left")), r = num($("#zi-right"));
-      if (l === null || r === null) { showError("請填入左半與右半的筆畫（大於 0 的整數）。"); return null; }
+      if (l === null || r === null) { showError("請填入左半與右半的筆畫（大於 0 的整數）。", [l === null ? $("#zi-left") : null, r === null ? $("#zi-right") : null]); return null; }
       return C.fromOneChar(chars[0], l, r);
     }
     if (kind === "stroke") {
-      var st = $$(".zi-stroke").map(num);
-      if (st.some(function (x) { return x === null; })) { showError("每個字都要有筆畫（大於 0 的整數）。"); return null; }
+      var inputs = $$(".zi-stroke"), st = inputs.map(num);
+      if (st.some(function (x) { return x === null; })) { showError("每個字都要有筆畫（大於 0 的整數）。", inputs.filter(function (el, i) { return st[i] === null; })); return null; }
       return C.fromCharStrokes(chars, st);
     }
     var tn = chars.map(function (_, i) { var el = $('input[name="zt' + i + '"]:checked'); return el ? +el.value : null; });
-    if (tn.some(function (x) { return x === null; })) { showError("每個字都要選一個聲調。"); return null; }
+    if (tn.some(function (x) { return x === null; })) { showError("每個字都要選一個聲調。", $('input[name="zt' + tn.indexOf(null) + '"]')); return null; }
     return C.fromCharTones(chars, tn);
   }
 
-  function showError(msg) {
-    var e = $("#form-error"); e.textContent = msg || ""; e.hidden = !msg;
+  // 錯誤訊息：顯示在固定的起卦列內；同時標示有問題的欄位（aria-invalid / aria-describedby）並把焦點移過去
+  var invalidEls = [];
+  function showError(msg, els) {
+    invalidEls.forEach(function (el) { el.removeAttribute("aria-invalid"); el.removeAttribute("aria-describedby"); });
+    invalidEls = [];
+    var e = $("#form-error"); e.textContent = msg ? "⚠ " + msg : ""; e.hidden = !msg;
+    if (msg && els) {
+      [].concat(els).filter(Boolean).forEach(function (el) { el.setAttribute("aria-invalid", "true"); el.setAttribute("aria-describedby", "form-error"); invalidEls.push(el); });
+      if (invalidEls[0]) invalidEls[0].focus();
+    }
   }
   function readPosInt(id) {
     var raw = ($("#" + id).value || "").trim();
@@ -255,12 +296,15 @@
     var now = new Date();
     if (method === "number") {
       var a = readPosInt("n1"), b = readPosInt("n2"), c = readPosInt("n3");
-      if (a === null || b === null || c === null) { showError("請輸入三個大於 0 的整數，或按「隨機填入」。"); return null; }
+      if (a === null || b === null || c === null) {
+        showError("請輸入三個大於 0 的整數，或按「隨機填入」。", ["n1", "n2", "n3"].map(function (id) { return $("#" + id); }).filter(function (el, i) { return [a, b, c][i] === null; }));
+        return null;
+      }
       return { divination: C.fromNumbers(a, b, c, $("#dongMode").value), when: now };
     }
     if (method === "time") {
       var d = currentWhen();
-      if (!d || isNaN(d)) { showError("請輸入有效的日期時間。"); return null; }
+      if (!d || isNaN(d)) { showError("請輸入有效的日期時間。", $("#when-input")); return null; }
       return { divination: C.fromDate(d), when: d };
     }
     if (method === "char") {
@@ -269,7 +313,7 @@
     }
     if (method === "object") {
       var n = readPosInt("obj-n");
-      if (n === null) { showError("請輸入大於 0 的整數。"); return null; }
+      if (n === null) { showError("請輸入大於 0 的整數。", $("#obj-n")); return null; }
       return { divination: C.fromObject(n, now), when: now };
     }
     if (method === "random") {
@@ -296,7 +340,13 @@
   }
   function trigName(id) { return T[id].name + "（" + T[id].elem + "）"; }
 
-  function sec(title, body) { return '<section class="card"><h2>' + title + "</h2>" + body + "</section>"; }
+  // 依據區塊：原生 <details>（鍵盤與螢幕閱讀器皆可用）；標題下方有一行預覽，不展開也看得到重點
+  function sect(key, titleHtml, preview, body) {
+    return '<details class="card sect" data-key="' + key + '"' + (prefs.open[key] ? " open" : "") + '><summary><h2 class="stitle">' + titleHtml +
+      '</h2><span class="spreview">' + esc(preview) + '</span></summary><div class="sbody">' + body + "</div></details>";
+  }
+  function previewText(t, n) { t = String(t || ""); return t.length > n ? t.slice(0, n) + "…" : t; }
+  function symOf(tone) { return tone === "good" ? "▲" : (tone === "bad" ? "▼" : "●"); }   // 不只靠顏色
 
   function textBlock(info, dong) {
     var y = info.yao[dong - 1];
@@ -327,7 +377,7 @@
     var G = window.GuaYingData, q = ($("#xiang-q").value || "").trim();
     if (!G) { $("#xiang-body").textContent = "類象資料載入失敗。"; return; }
     $("#xiang-tabs").innerHTML = Object.keys(G).map(function (id) {
-      return '<button type="button" data-x="' + id + '" aria-pressed="' + (!q && +id === xiangSel) + '">' + G[id].name + "</button>";
+      return '<button type="button" role="tab" data-x="' + id + '" aria-selected="' + (!q && +id === xiangSel) + '" tabindex="' + (+id === xiangSel ? 0 : -1) + '">' + G[id].name + "</button>";
     }).join("");
     if (!q) { $("#xiang-body").innerHTML = guaYingBlock(xiangSel, ""); return; }
     var hits = [];
@@ -343,64 +393,73 @@
       : '<p class="muted">查無「' + esc(q) + "」。可換同義詞（例如「魚」→「水族」），或清空搜尋直接看各卦全文。</p>";
   }
 
+  // 結果頁：上方「結論卡」（一個綜合吉凶 + 一句話 + 四條理由 + 三卦），下方「依據」預設折疊
   function renderResult(res, opts) {
     opts = opts || {};
-    var h = res.hexagram, a = res.analysis, m = res.month, show = prefs.show;
+    var h = res.hexagram, a = res.analysis, m = res.month, show = prefs.show, o = res.overall, sm = res.summary, yg = res.ying;
     var benInfo = Z.HEXAGRAMS[h.num.ben - 1], huInfo = Z.HEXAGRAMS[h.num.hu - 1], bianInfo = Z.HEXAGRAMS[h.num.bian - 1];
-    var levelCls = a.total >= 2 ? "good" : (a.total > -0.5 ? "warn" : "bad");
+    var y = benInfo.yao[h.dong - 1];
+    var innerTone = C.levelTone(a.level), innerSym = C.levelSymbol(a.level);
     var out = "";
 
-    out += '<section class="card"><div class="headline"><span class="big">' + esc(h.name.ben) + '</span>' +
-      '<span>第 ' + h.dong + ' 爻動 → 變 ' + esc(h.name.bian) + "</span>" +
-      (show.verdict ? '<span class="badge ' + levelCls + '">' + a.level + "</span>" : "") + "</div>" +
-      '<p class="muted">' + esc(res.record_question || "") + (res.record_question ? " · " : "") +
-      esc(METHOD_LABEL[res.divination.method] || "") + " · " + esc(fmtWhen(res.when)) + "</p>" +
+    // ---- 結論卡 ----
+    out += '<section class="card conclusion" aria-labelledby="result-title">' +
+      '<div class="concl-top"><h2 id="result-title" class="big" tabindex="-1">' + esc(h.name.ben) + '</h2>' +
+      '<span class="badge lg ' + o.tone + '">' + o.symbol + " " + o.level + "</span></div>" +
+      '<p class="sub2">第 ' + h.dong + " 爻動 → 變 " + esc(h.name.bian) + "</p>" +
+      '<p class="oneline">' + esc(sm.headline) + "</p>" +
+      '<ul class="reasons">' + sm.reasons.map(function (r) {
+        return '<li class="' + r.tone + '"><span class="rl ' + r.tone + '">' + symOf(r.tone) + " " + r.label + "</span><span>" + esc(r.text) + "</span></li>";
+      }).join("") + "</ul>" +
       '<div class="grid3">' + hexCard("本卦", h.lines, h.dong, h.num.ben, h.name.ben) +
       hexCard("互卦", h.hu.lines, 0, h.num.hu, h.name.hu) + hexCard("變卦", h.bian.lines, 0, h.num.bian, h.name.bian) + "</div>" +
-      '<p class="muted" style="margin-top:10px">體：' + trigName(h.tiId) + "　用：" + trigName(h.yongId) + "（動爻所在之卦為用）</p></section>";
+      '<p class="muted meta">' + esc(res.record_question || "（未填事由）") + " · " + esc(METHOD_LABEL[res.divination.method] || "") + " · " + esc(fmtWhen(res.when)) + "</p></section>";
 
-    if (show.steps) out += sec("起卦計算過程", '<ol class="steps">' + res.divination.steps.map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") + "</ol>");
-
+    // ---- 依據（可折疊）----
     if (show.text) {
-      var body = textBlock(benInfo, h.dong);
-      if (res.divination.method === "time") body += "";
-      out += sec("本卦：" + esc(h.name.ben) + "　卦辭與爻辭", body + '<p class="muted">梅花易數只有一個動爻，故以本卦動爻之爻辭為主，卦辭、大象為背景。</p>');
-    }
-    if (show.extra) {
-      out += sec("互卦與變卦的卦辭",
-        "<h3>互卦：" + esc(h.name.hu) + "（事之中間）</h3><blockquote>" + esc(huInfo.title) + "：" + esc(huInfo.guaci) + "</blockquote>" +
-        (show.tuan ? "<blockquote><small>彖傳</small>" + esc(huInfo.tuan) + "</blockquote>" : "") +
-        "<h3>變卦：" + esc(h.name.bian) + "（事之終結）</h3><blockquote>" + esc(bianInfo.title) + "：" + esc(bianInfo.guaci) + "</blockquote>" +
-        (show.tuan ? "<blockquote><small>彖傳</small>" + esc(bianInfo.tuan) + "</blockquote>" : "") +
-        "<blockquote><small>變卦大象</small>" + esc(bianInfo.daxiang) + "</blockquote>");
+      out += sect("text", "本卦：" + esc(h.name.ben) + "　卦辭與爻辭", y ? "動爻 " + y.pos + "：" + previewText(y.text, 16) : "卦辭、大象",
+        textBlock(benInfo, h.dong) + '<p class="muted">梅花易數只有一個動爻，故以本卦動爻之爻辭為主，卦辭、大象為背景。</p>');
     }
 
     if (show.tiyong) {
       var rows = [["體", h.tiId, null], ["用", h.yongId, a.items[0]], ["體互", h.huTiId, a.items[1]], ["用互", h.huYongId, a.items[2]], ["變卦（用位）", h.bianYongId, a.items[3]]];
       var trs = rows.map(function (r, i) {
-        var t = T[r[1]], it = r[2];
-        var st = C.stateOf(t.elem, m.season);
+        var t = T[r[1]], it = r[2], st = C.stateOf(t.elem, m.season);
         return "<tr" + (i === 0 ? ' class="hl"' : "") + "><td>" + r[0] + "</td><td>" + t.name + "（" + t.nature + "）</td><td>" + t.elem + "</td><td>" +
-          (it ? '<span class="' + it.rel.tone + '">' + it.rel.label + "</span>" : "—") + "</td><td>" + st + "</td></tr>";
+          (it ? '<span class="' + it.rel.tone + '">' + symOf(it.rel.tone) + " " + it.rel.label + "</span>" : "—") + "</td><td>" + st + "</td></tr>";
       }).join("");
-      out += sec("體用生剋表",
-        '<table><thead><tr><th>角色</th><th>卦</th><th>五行</th><th>與體關係</th><th>月令態</th></tr></thead><tbody>' + trs + "</tbody></table>" +
+      out += sect("tiyong", "體用生剋表", "體" + trigName(h.tiId) + " · 用" + trigName(h.yongId) + " · " + a.items[0].rel.label,
+        '<div class="tablewrap"><table><thead><tr><th>角色</th><th>卦</th><th>五行</th><th>與體關係</th><th>月令態</th></tr></thead><tbody>' + trs + "</tbody></table></div>" +
         '<p class="muted">體為己，用為事；互為事之中間，變為事之終（p.74、145）。體互最緊，用互次之。「生體」「剋體」均以體卦為準。</p>');
     }
 
     if (show.month) {
       var ww = ["木", "火", "土", "金", "水"].map(function (e) {
-        var st = C.stateOf(e, m.season);
-        return "<tr" + (e === a.ti.elem ? ' class="hl"' : "") + "><td>" + e + "</td><td>" + st + "</td></tr>";
+        return "<tr" + (e === a.ti.elem ? ' class="hl"' : "") + "><td>" + e + "</td><td>" + C.stateOf(e, m.season) + "</td></tr>";
       }).join("");
       var bookTag = a.tiState === "旺" ? "（書：卦氣旺）" : (a.tiState === "死" ? "（書：卦氣衰）" : "");
-      out += sec("月令旺衰",
+      out += sect("month", "月令旺衰", m.branch + "月（" + m.seasonName + "）· 體卦為「" + a.tiState + "」",
         "<p>月令：<strong>" + m.branch + "月</strong>（" + esc(m.termName) + (m.mode === "solar" ? "後約 " + m.daysSince.toFixed(1) + " 天；距下一節約 " + m.daysUntil.toFixed(1) + " 天" : "") + "），季節：" + esc(m.seasonName) + "。</p>" +
         (m.nearBoundary ? '<p class="warn">⚠ 接近換月交界（誤差約 ±15 分鐘），請對照萬年曆確認節氣時刻。</p>' : "") +
-        '<table style="max-width:260px"><thead><tr><th>五行</th><th>當月狀態</th></tr></thead><tbody>' + ww + "</tbody></table>" +
+        '<div class="tablewrap"><table style="max-width:260px"><thead><tr><th>五行</th><th>當月狀態</th></tr></thead><tbody>' + ww + "</tbody></table></div>" +
         "<p>體卦 " + trigName(h.tiId) + " 在本月為「" + a.tiState + "」" + bookTag + "。體宜乘旺、克體之卦宜衰（p.127、148）。</p>" +
         '<p class="muted">旺相休囚死：當令者旺，我生者相，生我者休，克我者囚，我克者死（p.285-286）。' +
         (m.mode === "lunar" ? "目前以農曆月份計（正月建寅）。" : "目前以節氣計月令。") + "</p>");
+    }
+
+    if (show.ying) {
+      var yrows = yg.items.map(function (it) {
+        return "<tr><td>" + it.title + "</td><td>" + esc(it.detail) + '</td><td><span class="' + it.rel.tone + '">' + symOf(it.rel.tone) + " " + it.rel.label + '</span></td><td class="' + it.rel.tone + '">' + it.verdict + "</td></tr>" +
+          (it.note ? '<tr><td></td><td colspan="3" class="muted">' + esc(it.note) + "</td></tr>" : "");
+      }).join("");
+      out += sect("ying", "十應與外應", yg.answered ? "已填 " + yg.answered + " 項外應 · 外應" + yg.outerLevel : "未填外應（只有日應）",
+        '<p class="muted">正應、互應、變應即「體用生剋表」（內卦）；以下為方、日、刻、外、天時、地理、人事等外應（p.176-181）。</p>' +
+        '<div class="tablewrap"><table><thead><tr><th>應</th><th>所見／所值</th><th>與體關係</th><th>判斷</th></tr></thead><tbody>' + yrows + "</tbody></table></div>" +
+        (yg.answered === 0 ? '<p class="muted">目前只有「日應」，且日應不會改動綜合吉凶。在起卦區「進階」填寫方位、天氣、地點等，才會依〈十應目論〉調整。</p>' : "") +
+        "<h3>綜合是怎麼得出的</h3><p>體用互變：<strong>" + innerSym + " " + a.level + "</strong>；外應分數 " + yg.outerScore + "（" + yg.outerLevel + "）。" +
+        (o.applied ? (o.shift === 0 ? "外應未改動等級。" : "外應調整 " + (o.shift > 0 ? "+" : "") + o.shift + " 級。") : "未填外應，不調整。") + " → 綜合 <strong>" + o.symbol + " " + o.level + "</strong>。</p>" +
+        '<p><strong class="' + yg.combined.tone + '">' + esc(yg.combined.text) + "</strong></p>" +
+        '<p class="muted">依〈十應目論〉（p.112）：內外皆吉斷吉，皆凶斷凶；內吉外凶，吉被破；內凶外吉，凶可解。須詳理，不可膠柱鼓瑟。</p>');
     }
 
     if (show.verdict) {
@@ -410,29 +469,24 @@
       var hints = a.hints.length ? "<h3>象意提示</h3><ul>" + a.hints.map(function (x) {
         return "<li><strong>" + x.role + " " + x.trigram.name + " " + x.kind + "</strong>：" + esc(x.text) + "</li>";
       }).join("") + "</ul>" : "";
-      out += sec("綜合斷語",
-        '<p><span class="badge ' + levelCls + '">' + a.level + "</span> 　總分 " + a.total.toFixed(2) + "</p>" +
+      out += sect("verdict", "象意、應期與評分明細", "體用互變評分 " + a.total.toFixed(1) + "（" + a.level + "）· 象意 " + a.hints.length + " 條",
+        '<p><span class="badge ' + innerTone + '">' + innerSym + " " + a.level + "</span> 體用互變等級，總分 " + a.total.toFixed(2) + "</p>" +
         (a.process ? "<p>" + esc(a.process) + "</p>" : "") + hints +
         "<h3>應期參考</h3><p>吉期：" + esc(a.timing.good.join("、")) + "<br>忌期：" + esc(a.timing.bad.join("、")) + '<br><span class="muted">生體、比和之五行當令時易應吉；剋體之五行當令時易應凶（p.148）。</span></p>' +
         (a.note ? '<p class="muted">' + esc(a.note) + "</p>" : "") +
-        '<details><summary>評分明細（本程式的簡化規則，非原書給分）</summary><table><tbody>' + parts + "</tbody></table>" +
+        "<h3>評分明細（本程式的簡化規則，非原書給分）</h3>" +
+        '<div class="tablewrap"><table><tbody>' + parts + "</tbody></table></div>" +
         '<p class="muted">比和＋2、生體＋2、體剋＋2、體生－1、剋體－3；體互權重 1、用互 0.5、變卦 1；體卦旺相休囚死 ＋1.5／＋0.75／0／－0.75／－1.5；剋體之卦氣旺再 －1、生體之卦氣旺再 ＋0.5。' +
-        "分級：≥4 大吉、≥2 吉、≥0.5 小吉、≥－0.5 平、≥－2 小凶、≥－4 凶、其餘大凶。</p></details>");
+        "分級：≥4 大吉、≥2 吉、≥0.5 小吉、≥－0.5 平、≥－2 小凶、≥－4 凶、其餘大凶。</p>");
     }
 
-    if (show.ying) {
-      var yg = res.ying;
-      var yrows = yg.items.map(function (it) {
-        return "<tr><td>" + it.title + "</td><td>" + esc(it.detail) + '</td><td><span class="' + it.rel.tone + '">' + it.rel.label + '</span></td><td class="' + it.rel.tone + '">' + it.verdict + "</td></tr>" +
-          (it.note ? '<tr><td></td><td colspan="3" class="muted">' + esc(it.note) + "</td></tr>" : "");
-      }).join("");
-      out += sec("十應與內外合斷",
-        '<p class="muted">正應、互應、變應即上方「體用生剋表」（內卦）；以下為方、日、刻、外、天時、地理、人事等外應（p.176-181）。</p>' +
-        '<table><thead><tr><th>應</th><th>所見／所值</th><th>與體關係</th><th>判斷</th></tr></thead><tbody>' + yrows + "</tbody></table>" +
-        (yg.answered === 0 ? '<p class="muted">目前只有「日應」。在起卦區展開「十應」填寫起卦當下的方位、天氣、地點等，可得到更完整的外應。</p>' : "") +
-        "<p>外應分數 " + yg.outerScore + "（" + yg.outerLevel + "）；內卦（體用互變）" + a.level + "。</p>" +
-        '<p><strong class="' + yg.combined.tone + '">' + esc(yg.combined.text) + '</strong></p>' +
-        '<p class="muted">依〈十應目論〉（p.112）：內外皆吉斷吉，皆凶斷凶；內吉外凶，吉被破；內凶外吉，凶可解。須詳理，不可膠柱鼓瑟。</p>');
+    if (show.extra) {
+      out += sect("extra", "互卦與變卦的卦辭", "互 " + h.name.hu + " · 變 " + h.name.bian,
+        "<h3>互卦：" + esc(h.name.hu) + "（事之中間）</h3><blockquote>" + esc(huInfo.title) + "：" + esc(huInfo.guaci) + "</blockquote>" +
+        (show.tuan ? "<blockquote><small>彖傳</small>" + esc(huInfo.tuan) + "</blockquote>" : "") +
+        "<h3>變卦：" + esc(h.name.bian) + "（事之終結）</h3><blockquote>" + esc(bianInfo.title) + "：" + esc(bianInfo.guaci) + "</blockquote>" +
+        (show.tuan ? "<blockquote><small>彖傳</small>" + esc(bianInfo.tuan) + "</blockquote>" : "") +
+        "<blockquote><small>變卦大象</small>" + esc(bianInfo.daxiang) + "</blockquote>");
     }
 
     if (show.xiang) {
@@ -441,24 +495,51 @@
         return "<div><strong>" + role + "：" + t.name + "（" + t.nature + "·" + t.elem + "）</strong><br>" +
           "卦德：" + t.virtue + "　方位：" + t.dir + "<br>人：" + t.family + "<br>身：" + t.body + "　獸：" + t.animal + "<br>物：" + esc(t.items.join("、")) + "</div>";
       };
-      out += sec("類象（八卦萬物屬類）", '<div class="xiang-grid">' + xi(h.tiId, "體") + xi(h.yongId, "用") + "</div>" +
+      out += sect("xiang", "類象（八卦萬物屬類）", "體" + T[h.tiId].name + " · 用" + T[h.yongId].name,
+        '<div class="xiang-grid">' + xi(h.tiId, "體") + xi(h.yongId, "用") + "</div>" +
         '<p class="muted">節錄自《梅花易數》〈八卦萬物屬類〉（p.29-30），僅列常用項目。</p>' +
-        (window.GuaYingData ? "<details><summary>體卦、用卦的詳細類象（卦應，p.183-198）</summary>" +
-          guaYingBlock(h.tiId, "體") + guaYingBlock(h.yongId, "用") + "</details>" : ""));
+        (window.GuaYingData ? "<details><summary>體卦、用卦的詳細類象（卦應，p.183-198）</summary>" + guaYingBlock(h.tiId, "體") + guaYingBlock(h.yongId, "用") + "</details>" : ""));
+    }
+
+    if (show.steps) {
+      out += sect("steps", "起卦計算過程", (METHOD_LABEL[res.divination.method] || "") + " · 共 " + res.divination.steps.length + " 步",
+        '<ol class="steps">' + res.divination.steps.map(function (st) { return "<li>" + esc(st) + "</li>"; }).join("") + "</ol>");
     }
 
     if (show.sources) {
-      out += sec("原書依據", "<ul>" + D.SOURCES.map(function (s) { return "<li>" + esc(s.topic) + "（" + s.ref + "）</li>"; }).join("") + "</ul>");
+      out += sect("sources", "原書依據", D.SOURCES.length + " 條",
+        "<ul>" + D.SOURCES.map(function (sr) { return "<li>" + esc(sr.topic) + "（" + sr.ref + "）</li>"; }).join("") + "</ul>");
     }
 
     var el = $("#result");
     el.innerHTML = out;
-    if (!opts.noScroll && el.scrollIntoView) { try { el.scrollIntoView({ behavior: "auto", block: "start" }); } catch (e) { /* 忽略 */ } }
+    if (!opts.noScroll) {
+      // 新結果：捲到結論卡、把焦點移到結論標題，並用簡短的一句話通知螢幕閱讀器（而不是朗讀整頁）
+      try { el.scrollIntoView({ behavior: "auto", block: "start" }); } catch (e) { /* 忽略 */ }
+      var tt = $("#result-title"); if (tt) { try { tt.focus({ preventScroll: true }); } catch (e) { /* 忽略 */ } }
+      announce("已完成起卦：" + h.name.ben + "，第 " + h.dong + " 爻動，變" + h.name.bian + "，綜合" + o.level + "。");
+    }
   }
 
   function fmtWhen(d) {
     var p = C.zonedParts(d);
     return p.year + "-" + pad(p.month) + "-" + pad(p.day) + " " + pad(p.hour) + ":" + pad(p.minute) + "（臺北）";
+  }
+
+  // ---------- 操作回饋：提示訊息與螢幕閱讀器播報 ----------
+  var toastTimer = null;
+  function hideToast() { clearTimeout(toastTimer); $("#toast").hidden = true; }
+  // msg：訊息；actionLabel／onAction：可選的動作按鈕（例如「復原」）；ms：自動消失時間
+  function toast(msg, actionLabel, onAction, ms) {
+    var a = $("#toast-action"); clearTimeout(toastTimer);
+    $("#toast-msg").textContent = msg;
+    if (actionLabel) { a.textContent = actionLabel; a.hidden = false; a.onclick = function () { onAction(); }; } else { a.hidden = true; a.onclick = null; }
+    $("#toast").hidden = false;
+    toastTimer = setTimeout(hideToast, ms || 4000);
+  }
+  function announce(msg) {
+    var r = $("#sr-status"); r.textContent = "";
+    setTimeout(function () { r.textContent = msg; }, 50);   // 先清空再寫入，確保重複訊息也會被朗讀
   }
 
   // ---------- 歷史紀錄 ----------
@@ -472,7 +553,7 @@
       question: question, category: category, method: res.divination.method,
       divination: { method: res.divination.method, upper: res.divination.upper, lower: res.divination.lower, dong: res.divination.dong, input: res.divination.input, steps: res.divination.steps },
       monthMode: prefs.monthMode, ying: res.yingInputs || {},
-      summary: { ben: h.name.ben, hu: h.name.hu, bian: h.name.bian, level: res.analysis.level, total: res.analysis.total }
+      summary: { ben: h.name.ben, hu: h.name.hu, bian: h.name.bian, level: res.overall.level, inner: res.analysis.level, total: res.analysis.total }
     };
   }
 
@@ -509,21 +590,46 @@
   }
 
   var historyCache = [];
+  var pendingDel = null;   // 已從畫面移除、尚未真正刪除的紀錄（5 秒內可復原）
+
+  function histRow(r) {
+    var sm = r.summary || {};
+    var lvlOk = C.LADDER.indexOf(sm.level) >= 0;
+    var badge = lvlOk ? ' <span class="badge ' + C.levelTone(sm.level) + '">' + C.levelSymbol(sm.level) + " " + esc(sm.level) + "</span>" : "";
+    var label = esc(r.question || "（未填事由）");
+    return '<li><div><div class="q">' + label + badge + '</div><div class="meta2">' + esc(fmtWhen(new Date(r.ts || r.whenISO))) + " · " + esc(METHOD_LABEL[r.method] || r.method) +
+      (r.category ? " · " + esc(r.category) : "") + " · " + esc(sm.ben || "") + " → " + esc(sm.bian || "") + "</div></div>" +
+      '<div class="hist-actions"><button type="button" data-open="' + esc(r.id) + '">開啟</button>' +
+      '<button type="button" class="danger" data-del="' + esc(r.id) + '" aria-label="刪除：' + label + '">刪除</button></div></li>';
+  }
+  function paintHistory() {
+    var list = historyCache.filter(function (r) { return !(pendingDel && pendingDel.id === r.id); });
+    $("#history-list").innerHTML = list.length ? list.map(histRow).join("") : '<li class="muted">還沒有紀錄。排一盤後，結果會自動出現在這裡。</li>';
+  }
   function renderHistory() {
     $("#hist-source").textContent = cloud.user ? "資料來源：雲端（" + cloud.user.email + "）" : "資料來源：這個瀏覽器（本機）";
     $("#hist-upload").hidden = !(cloud.user && loadLocalHistory().length);
-    listHistory().then(function (list) {
-      historyCache = list;
-      $("#history-list").innerHTML = list.length ? list.map(function (r) {
-        var s = r.summary || {};
-        return '<li><div><div>' + esc(r.question || "（未填事由）") + ' <span class="badge">' + esc(s.level || "") + '</span></div>' +
-          '<div class="meta">' + esc(fmtWhen(new Date(r.ts || r.whenISO))) + " · " + esc(METHOD_LABEL[r.method] || r.method) + " · " + esc(r.category || "") +
-          " · " + esc(s.ben || "") + " → " + esc(s.bian || "") + '</div></div>' +
-          '<div><button type="button" data-open="' + esc(r.id) + '">開啟</button> <button type="button" class="danger" data-del="' + esc(r.id) + '">刪除</button></div></li>';
-      }).join("") : '<li class="muted">還沒有紀錄。</li>';
-    }).catch(function (e) {
-      $("#history-list").innerHTML = '<li class="error">讀取歷史失敗：' + esc(e.message || e) + "</li>";
+    $("#history-list").innerHTML = '<li class="muted" role="status">載入中…</li>';
+    listHistory().then(function (list) { historyCache = list; paintHistory(); }).catch(function (e) {
+      $("#history-list").innerHTML = '<li class="error">讀取歷史失敗：' + esc(e.message || e) + "（請檢查網路後再開啟此頁）</li>";
     });
+  }
+  // 刪除：先從畫面移除並顯示「復原」，5 秒後才真正刪除（離開頁面時立即提交）。不用彈窗打斷操作。
+  function commitPending() {
+    if (!pendingDel) return;
+    clearTimeout(pendingDel.timer);
+    var p = pendingDel; pendingDel = null;
+    historyCache = historyCache.filter(function (r) { return r.id !== p.id; });
+    deleteRecord(p.id, p.cloud).catch(function (err) { toast("刪除失敗：" + (err.message || err)); renderHistory(); });
+  }
+  function softDelete(rec) {
+    commitPending();
+    pendingDel = { id: rec.id, cloud: !!rec.cloud, timer: setTimeout(function () { commitPending(); }, 5000) };
+    paintHistory();
+    toast("已刪除「" + (rec.question || "未填事由") + "」", "復原", function () {
+      if (!pendingDel) return;
+      clearTimeout(pendingDel.timer); pendingDel = null; paintHistory(); toast("已復原", null, null, 2500);
+    }, 5000);
   }
 
   function openRecord(rec) {
@@ -536,10 +642,12 @@
   }
 
   // ---------- 起卦流程 ----------
-  var last = null;
+  var last = null, casting = false;
   function doCast() {
+    if (casting) return;                                   // 防止連點造成重複紀錄
+    casting = true; setTimeout(function () { casting = false; }, 400);
     var got = collect();
-    if (!got) return;
+    if (!got) { casting = false; return; }
     var question = $("#question").value.trim(), category = $("#category").value;
     var res = C.cast(got.divination, got.when, prefs.monthMode, readYing());
     res.record_question = question;
@@ -548,7 +656,7 @@
     if (prefs.autosave) {
       var rec = makeRecord(res, question, category);
       saveRecord(rec).then(function () { if (currentView === "history") renderHistory(); })
-        .catch(function (e) { console.error("儲存失敗", e); showError("排盤完成，但儲存歷史失敗：" + (e.message || e)); });
+        .catch(function (e) { console.error("儲存失敗", e); toast("排盤完成，但儲存歷史失敗：" + (e.message || e) + "（結果仍可使用）", null, null, 6000); });
     }
   }
 
@@ -608,12 +716,16 @@
   // ---------- 分頁（一次只顯示一頁；用網址 # 記錄，瀏覽器的返回鍵可用）----------
   var VIEWS = ["home", "history", "xiang", "prefs", "account"];
   var currentView = "home";
-  function viewFromHash() {
+  var VIEW_TITLES = { home: "梅花易數排盤", history: "歷史紀錄・梅花易數排盤", xiang: "類象查詢・梅花易數排盤", prefs: "顯示項目・梅花易數排盤", account: "帳號・梅花易數排盤" };
+  function routeFromHash() {
     var m = /^#\/(history|xiang|prefs|account)$/.exec(location.hash);
-    return m ? m[1] : "home"; // 其他 hash（例如 Supabase 登入回傳）一律視為首頁
+    if (m) return m[1];
+    if (location.hash === "" || location.hash === "#/") return "home";
+    return null;   // 未知 hash（跳到內容連結 #main、Supabase 登入回傳等）：不改變目前頁面
   }
-  function showView(name, noScroll) {
+  function showView(name, initial) {
     currentView = name;
+    document.title = VIEW_TITLES[name] || VIEW_TITLES.home;
     document.body.setAttribute("data-view", name);
     VIEWS.forEach(function (v) { var el = $("#view-" + v); if (el) el.hidden = v !== name; });
     $$(".topnav button[data-view]").forEach(function (b) {
@@ -622,9 +734,12 @@
     if (name === "history") renderHistory();
     if (name === "xiang") renderXiang();
     if (name === "account") renderAccount();
-    if (!noScroll) {
+    if (!initial) {
       // behavior:"instant" 會中斷進行中的平滑捲動（例如剛起卦完正在捲向結果時切頁）
       try { window.scrollTo({ top: 0, left: 0, behavior: "instant" }); } catch (e) { try { window.scrollTo(0, 0); } catch (e2) { /* 忽略 */ } }
+      // 把焦點移到新頁的標題，讓鍵盤與螢幕閱讀器使用者知道已換頁
+      var hd = $("#view-" + name + " h2");
+      if (hd) { hd.setAttribute("tabindex", "-1"); try { hd.focus({ preventScroll: true }); } catch (e3) { /* 忽略 */ } }
     }
   }
   function navigate(name) {
@@ -633,17 +748,37 @@
     if (location.hash !== h) { try { location.hash = h; } catch (e) { /* 忽略 */ } }
   }
   window.addEventListener("hashchange", function () {
-    var v = viewFromHash();
-    if (v !== currentView) showView(v);
+    var v = routeFromHash();
+    if (v && v !== currentView) showView(v);
   });
+  // 離開頁面（切到別的 App、關閉）時，立即提交尚未真正執行的刪除
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") commitPending(); });
+
+  // 固定導覽列的實際高度（按鈕換行時會變）寫進 CSS 變數，供 scroll-padding-top 使用
+  function syncNavH() {
+    var n = $(".topnav"); if (!n) return;
+    document.documentElement.style.setProperty("--nav-h", n.offsetHeight + "px");
+  }
 
   function init() {
+    syncNavH();
+    window.addEventListener("resize", syncNavH);
+    window.addEventListener("orientationchange", syncNavH);
+    if (window.ResizeObserver) { try { new ResizeObserver(syncNavH).observe($(".topnav")); } catch (e) { /* 忽略 */ } }
     renderTabs(); renderForm(); renderYingFields();
 
     $("#method-tabs").addEventListener("click", function (e) {
       var b = e.target.closest("button[data-m]"); if (!b) return;
-      method = b.getAttribute("data-m"); showError(""); renderTabs(); renderForm();
+      selectMethod(b.getAttribute("data-m"), false);
     });
+    tabKeys($("#method-tabs"), function (b) { selectMethod(b.getAttribute("data-m"), true); });
+    $("#more-toggle").addEventListener("click", function () { moreOpen = !moreOpen; renderTabs(); });
+    $("#method-form").addEventListener("input", function () { if (invalidEls.length) showError(""); });   // 開始修正就清除錯誤標示
+    // 依據區塊的展開／收合狀態會被記住（toggle 事件不冒泡，所以用捕獲階段）
+    $("#result").addEventListener("toggle", function (e) {
+      var d = e.target; if (!d || !d.classList || !d.classList.contains("sect")) return;
+      prefs.open[d.getAttribute("data-key")] = d.open; savePrefs();
+    }, true);
     $("#btn-cast").addEventListener("click", doCast);
     $("#method-form").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.tagName === "INPUT" && e.target.type !== "radio") doCast(); });
 
@@ -674,16 +809,18 @@
       var b = e.target.closest("button[data-x]"); if (!b) return;
       xiangSel = +b.getAttribute("data-x"); $("#xiang-q").value = ""; renderXiang();
     });
+    tabKeys($("#xiang-tabs"), function (b) {
+      xiangSel = +b.getAttribute("data-x"); $("#xiang-q").value = ""; renderXiang();
+      var el = $('#xiang-tabs [data-x="' + xiangSel + '"]'); if (el) el.focus();
+    });
 
     // 歷史
     $("#btn-history").addEventListener("click", function () { navigate("history"); });
     $("#history-list").addEventListener("click", function (e) {
-      var o = e.target.getAttribute("data-open"), d = e.target.getAttribute("data-del");
+      var b = e.target.closest("button"); if (!b) return;
+      var o = b.getAttribute("data-open"), d = b.getAttribute("data-del");
       if (o) { var rec = historyCache.filter(function (r) { return r.id === o; })[0]; if (rec) openRecord(rec); }
-      if (d) {
-        var rec2 = historyCache.filter(function (r) { return r.id === d; })[0];
-        deleteRecord(d, rec2 && rec2.cloud).then(renderHistory).catch(function (err) { showError("刪除失敗：" + (err.message || err)); });
-      }
+      if (d) { var rec2 = historyCache.filter(function (r) { return r.id === d; })[0]; if (rec2) softDelete(rec2); }
     });
     $("#hist-export").addEventListener("click", function () {
       listHistory().then(function (list) {
@@ -692,12 +829,12 @@
       });
     });
     $("#hist-clear").addEventListener("click", function () {
-      if (window.confirm("確定要清空這個瀏覽器裡的所有歷史紀錄嗎？（雲端紀錄不受影響）")) { saveLocalHistory([]); renderHistory(); }
+      if (window.confirm("確定要清空這個瀏覽器裡的所有歷史紀錄嗎？（雲端紀錄不受影響，此動作無法復原）")) { saveLocalHistory([]); renderHistory(); toast("已清空本機紀錄", null, null, 2500); }
     });
     $("#hist-upload").addEventListener("click", function () {
       var local = loadLocalHistory(); if (!local.length || !cloud.client) return;
       cloud.client.from("divination_logs").insert(local.map(function (r) { return { question: r.question, method: r.method, record: r }; }))
-        .then(function (r) { if (r.error) { showError("上傳失敗：" + r.error.message); return; } saveLocalHistory([]); renderHistory(); });
+        .then(function (r) { if (r.error) { toast("上傳失敗：" + r.error.message + "（本機紀錄仍保留）", null, null, 6000); return; } saveLocalHistory([]); renderHistory(); toast("已上傳到雲端", null, null, 2500); });
     });
 
     // 帳號
@@ -725,6 +862,6 @@
   }
 
   init();
-  showView(viewFromHash(), true);
+  showView(routeFromHash() || "home", true);
   initPwa();
 })();

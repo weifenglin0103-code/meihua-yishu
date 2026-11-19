@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#8a3b2e">
-  <meta name="description" content="梅花易數線上排盤：數字、時間、物數起卦，體用生剋、月令旺衰、十應，配《周易》卦辭爻辭與彖象。">
+  <meta name="description" content="梅花易數線上排盤：時間、數字、字占起卦，體用生剋、月令旺衰、十應，配《周易》卦辭爻辭與彖象。">
+  <title>梅花易數排盤</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -12,10 +13,11 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="梅花易數">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>梅花易數排盤</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body data-view="home">
+  <a class="skip" href="#main">跳到主要內容</a>
+
   <header class="top">
     <div class="wrap">
       <h1>🌸 梅花易數排盤</h1>
@@ -34,12 +36,12 @@
     </div>
   </nav>
 
-  <main class="wrap">
+  <main class="wrap" id="main" tabindex="-1">
     <!-- 分頁：顯示項目 -->
     <section class="card view" id="view-prefs" hidden>
       <button type="button" class="back" data-go="home">← 返回起卦</button>
       <h2>顯示項目</h2>
-      <p class="muted">勾選要在結果中顯示的內容，選擇會記在這個瀏覽器。</p>
+      <p class="muted">勾選要在結果中顯示的內容，選擇會記在這個瀏覽器。結論卡一律顯示。</p>
       <div class="checks" id="prefs-checks"></div>
       <div class="row">
         <label>月令算法
@@ -54,46 +56,54 @@
 
     <!-- 分頁：起卦（首頁） -->
     <div class="view" id="view-home">
-    <section class="card">
-      <h2>起卦</h2>
-      <div class="row">
-        <label class="grow">占問事由
-          <input id="question" type="text" maxlength="100" placeholder="例如：明日面試是否順利？">
+      <section class="card" aria-labelledby="cast-title">
+        <h2 id="cast-title">起卦</h2>
+        <label class="field">占問事由（選填）
+          <input id="question" type="text" maxlength="100" placeholder="例如：明日面試是否順利？" autocomplete="off">
         </label>
-        <label>類別
-          <select id="category">
-            <option>事業</option><option>財運</option><option>感情</option><option>健康</option>
-            <option>出行</option><option>學業</option><option>其他</option>
-          </select>
-        </label>
-      </div>
 
-      <div class="tabs" role="tablist" id="method-tabs"></div>
-      <div id="method-form"></div>
-      <details id="ying-box">
-        <summary>十應（選填）：起卦當下的實際情況，可補充外應判斷</summary>
-        <div class="grid2" id="ying-fields"></div>
-        <p class="muted">依《梅花易數》十應（p.176-181）：以體卦為主，看外在事物屬何卦，再論生剋比和。日應會自動由日期算出，不必填。</p>
-      </details>
-      <p id="form-error" class="error" role="alert" hidden></p>
-      <button type="button" id="btn-cast" class="primary">開始起卦</button>
-    </section>
+        <div class="tabs" role="tablist" aria-label="起卦方式" id="method-tabs"></div>
+        <button type="button" class="linkbtn" id="more-toggle" aria-expanded="false" aria-controls="method-tabs"></button>
+        <div id="method-form" role="tabpanel"></div>
 
-    <!-- 結果 -->
-    <div id="result" aria-live="polite"></div>
+        <details id="ying-box">
+          <summary>進階（選填）：類別、十應</summary>
+          <label class="field">類別（只用於歷史紀錄分類）
+            <select id="category">
+              <option value="">不分類</option>
+              <option>事業</option><option>財運</option><option>感情</option><option>健康</option>
+              <option>出行</option><option>學業</option><option>其他</option>
+            </select>
+          </label>
+          <h3>十應：起卦當下的實際情況</h3>
+          <div class="grid2" id="ying-fields"></div>
+          <p class="muted">依《梅花易數》十應（p.176-181）：以體卦為主，看外在事物屬何卦，再論生剋比和。日應會自動由日期算出，不必填。填寫後會依〈十應目論〉調整綜合吉凶一級。</p>
+        </details>
+
+        <!-- 固定在畫面底部的起卦列：錯誤訊息與主要動作永遠在拇指範圍內 -->
+        <div class="castbar">
+          <p id="form-error" class="error" role="alert" hidden></p>
+          <button type="button" id="btn-cast" class="primary">開始起卦</button>
+        </div>
+      </section>
+
+      <!-- 結果：結論卡 + 可折疊的依據 -->
+      <div id="result"></div>
     </div>
 
-    <!-- 類象查詢 -->
+    <!-- 分頁：類象查詢 -->
     <section class="card view" id="view-xiang" hidden>
       <button type="button" class="back" data-go="home">← 返回起卦</button>
       <h2>卦應類象查詢</h2>
       <p class="muted">《梅花易數》卷三〈卦應〉（p.183-198）。起卦當下見到的事物，可以在這裡查它屬於哪一卦，用作「外應」。</p>
-      <label>搜尋（例如：魚、老人、酒、東北、紅）<input id="xiang-q" type="search" autocomplete="off" placeholder="輸入關鍵字，留空則看各卦全文"></label>
-      <div class="tabs" id="xiang-tabs" role="tablist"></div>
-      <div id="xiang-body"></div>
+      <label class="field">搜尋（例如：魚、老人、酒、東北、紅）
+        <input id="xiang-q" type="search" autocomplete="off" placeholder="輸入關鍵字，留空則看各卦全文">
+      </label>
+      <div class="tabs" id="xiang-tabs" role="tablist" aria-label="八卦"></div>
+      <div id="xiang-body" role="tabpanel"></div>
     </section>
 
-    <!-- 歷史 -->
+    <!-- 分頁：歷史 -->
     <section class="card view" id="view-history" hidden>
       <button type="button" class="back" data-go="home">← 返回起卦</button>
       <h2>歷史紀錄</h2>
@@ -101,12 +111,12 @@
         <button type="button" id="hist-export">匯出 JSON</button>
         <button type="button" id="hist-clear" class="danger">清空本機紀錄</button>
         <button type="button" id="hist-upload" hidden>上傳本機紀錄到雲端</button>
-        <span class="muted" id="hist-source"></span>
       </div>
+      <p class="muted" id="hist-source"></p>
       <ul class="history" id="history-list"></ul>
     </section>
 
-    <!-- 帳號（Supabase，可選） -->
+    <!-- 分頁：帳號（Supabase，可選） -->
     <section class="card view" id="view-account" hidden>
       <button type="button" class="back" data-go="home">← 返回起卦</button>
       <h2>帳號與雲端同步</h2>
@@ -124,6 +134,13 @@
     <p>斷語為依原書體用、旺衰規則所做的簡化推算，僅供娛樂與自我反思，不構成任何決策建議。</p>
     <p>經文：傅佩榮《傅佩榮易經課》解卦手冊中的《周易》原文；規則：邵雍《梅花易數》（陳明點校）。</p>
   </footer>
+
+  <!-- 操作回饋：提示訊息（可含「復原」）與螢幕閱讀器播報區 -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+    <span id="toast-msg"></span>
+    <button type="button" id="toast-action" hidden></button>
+  </div>
+  <div id="sr-status" class="sr-only" role="status" aria-live="polite"></div>
 
   <script src="js/config.js"></script>
   <script src="js/data-zhouyi.js"></script>
