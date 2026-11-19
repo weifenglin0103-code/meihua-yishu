@@ -5,7 +5,7 @@
  *  - 跨網域（例如 Supabase）：不攔截，一律走網路
  * 更新程式後，把 VERSION 改一個新值，舊快取會在啟用時清掉。
  */
-var VERSION = "meihua-v7";
+var VERSION = "meihua-v8";
 var ASSETS = [
   "./", "index.html", "manifest.webmanifest", "css/style.css",
   "js/config.js", "js/data-zhouyi.js", "js/data-meihua.js", "js/data-guaying.js", "js/data-zi.js", "js/core.js", "js/app.js",

@@ -30,19 +30,21 @@
       <button type="button" id="btn-home" data-view="home">起卦</button>
       <button type="button" id="btn-history" data-view="history">歷史紀錄</button>
       <button type="button" id="btn-xiang" data-view="xiang">類象查詢</button>
-      <button type="button" id="btn-prefs" data-view="prefs">顯示項目</button>
+      <button type="button" id="btn-prefs" data-view="prefs">設定</button>
       <button type="button" id="btn-account" data-view="account" hidden>帳號</button>
       <button type="button" id="btn-install" hidden>📲 安裝到手機</button>
     </div>
   </nav>
 
   <main class="wrap" id="main" tabindex="-1">
-    <!-- 分頁：顯示項目 -->
+    <!-- 分頁：設定 -->
     <section class="card view" id="view-prefs" hidden>
       <button type="button" class="back" data-go="home">← 返回起卦</button>
-      <h2>顯示項目</h2>
-      <p class="muted">勾選要在結果中顯示的內容，選擇會記在這個瀏覽器。結論卡一律顯示。</p>
+      <h2>設定</h2>
+      <h3>結果要顯示哪些內容</h3>
+      <p class="muted">勾選要在結果「依據」中顯示的區塊，選擇會記在這個瀏覽器。結論卡一律顯示。</p>
       <div class="checks" id="prefs-checks"></div>
+      <h3>計算與紀錄</h3>
       <div class="row">
         <label>月令算法
           <select id="pref-monthMode">

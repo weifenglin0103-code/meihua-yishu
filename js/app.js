@@ -716,7 +716,7 @@
   // ---------- 分頁（一次只顯示一頁；用網址 # 記錄，瀏覽器的返回鍵可用）----------
   var VIEWS = ["home", "history", "xiang", "prefs", "account"];
   var currentView = "home";
-  var VIEW_TITLES = { home: "梅花易數排盤", history: "歷史紀錄・梅花易數排盤", xiang: "類象查詢・梅花易數排盤", prefs: "顯示項目・梅花易數排盤", account: "帳號・梅花易數排盤" };
+  var VIEW_TITLES = { home: "梅花易數排盤", history: "歷史紀錄・梅花易數排盤", xiang: "類象查詢・梅花易數排盤", prefs: "設定・梅花易數排盤", account: "帳號・梅花易數排盤" };
   function routeFromHash() {
     var m = /^#\/(history|xiang|prefs|account)$/.exec(location.hash);
     if (m) return m[1];
@@ -782,7 +782,7 @@
     $("#btn-cast").addEventListener("click", doCast);
     $("#method-form").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.tagName === "INPUT" && e.target.type !== "radio") doCast(); });
 
-    // 顯示項目面板
+    // 設定頁
     $("#prefs-checks").innerHTML = SHOW_ITEMS.map(function (it) {
       return '<label><input type="checkbox" data-show="' + it[0] + '"' + (prefs.show[it[0]] ? " checked" : "") + "> " + it[1] + "</label>";
     }).join("");
