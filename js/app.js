@@ -453,7 +453,7 @@
 
     var el = $("#result");
     el.innerHTML = out;
-    if (!opts.noScroll && el.scrollIntoView) { try { el.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { /* 忽略 */ } }
+    if (!opts.noScroll && el.scrollIntoView) { try { el.scrollIntoView({ behavior: "auto", block: "start" }); } catch (e) { /* 忽略 */ } }
   }
 
   function fmtWhen(d) {
@@ -530,6 +530,8 @@
     var d = rec.divination, when = new Date(rec.whenISO || rec.ts);
     var res = C.cast(d, when, rec.monthMode || prefs.monthMode, rec.ying || {});
     res.record_question = rec.question;
+    last = res;
+    navigate("home");
     renderResult(res);
   }
 
@@ -545,7 +547,7 @@
     renderResult(res);
     if (prefs.autosave) {
       var rec = makeRecord(res, question, category);
-      saveRecord(rec).then(function () { if (!$("#panel-history").hidden) renderHistory(); })
+      saveRecord(rec).then(function () { if (currentView === "history") renderHistory(); })
         .catch(function (e) { console.error("儲存失敗", e); showError("排盤完成，但儲存歷史失敗：" + (e.message || e)); });
     }
   }
@@ -603,7 +605,37 @@
   }
 
   // ---------- 事件綁定 ----------
-  function togglePanel(id) { var p = $(id); p.hidden = !p.hidden; return !p.hidden; }
+  // ---------- 分頁（一次只顯示一頁；用網址 # 記錄，瀏覽器的返回鍵可用）----------
+  var VIEWS = ["home", "history", "xiang", "prefs", "account"];
+  var currentView = "home";
+  function viewFromHash() {
+    var m = /^#\/(history|xiang|prefs|account)$/.exec(location.hash);
+    return m ? m[1] : "home"; // 其他 hash（例如 Supabase 登入回傳）一律視為首頁
+  }
+  function showView(name, noScroll) {
+    currentView = name;
+    document.body.setAttribute("data-view", name);
+    VIEWS.forEach(function (v) { var el = $("#view-" + v); if (el) el.hidden = v !== name; });
+    $$(".topnav button[data-view]").forEach(function (b) {
+      if (b.getAttribute("data-view") === name) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+    if (name === "history") renderHistory();
+    if (name === "xiang") renderXiang();
+    if (name === "account") renderAccount();
+    if (!noScroll) {
+      // behavior:"instant" 會中斷進行中的平滑捲動（例如剛起卦完正在捲向結果時切頁）
+      try { window.scrollTo({ top: 0, left: 0, behavior: "instant" }); } catch (e) { try { window.scrollTo(0, 0); } catch (e2) { /* 忽略 */ } }
+    }
+  }
+  function navigate(name) {
+    showView(name);
+    var h = name === "home" ? "#/" : "#/" + name;
+    if (location.hash !== h) { try { location.hash = h; } catch (e) { /* 忽略 */ } }
+  }
+  window.addEventListener("hashchange", function () {
+    var v = viewFromHash();
+    if (v !== currentView) showView(v);
+  });
 
   function init() {
     renderTabs(); renderForm(); renderYingFields();
@@ -621,7 +653,9 @@
     }).join("");
     $("#pref-monthMode").value = prefs.monthMode;
     $("#pref-autosave").checked = !!prefs.autosave;
-    $("#btn-prefs").addEventListener("click", function () { togglePanel("#panel-prefs"); });
+    $("#btn-prefs").addEventListener("click", function () { navigate("prefs"); });
+    $("#btn-home").addEventListener("click", function () { navigate("home"); });
+    $$("[data-go]").forEach(function (b) { b.addEventListener("click", function () { navigate(b.getAttribute("data-go")); }); });
     $("#prefs-checks").addEventListener("change", function (e) {
       var k = e.target.getAttribute("data-show"); if (!k) return;
       prefs.show[k] = e.target.checked; savePrefs(); if (last) renderResult(last, { noScroll: true });
@@ -634,7 +668,7 @@
     $("#pref-autosave").addEventListener("change", function (e) { prefs.autosave = e.target.checked; savePrefs(); });
 
     // 類象查詢
-    $("#btn-xiang").addEventListener("click", function () { if (togglePanel("#panel-xiang")) renderXiang(); });
+    $("#btn-xiang").addEventListener("click", function () { navigate("xiang"); });
     $("#xiang-q").addEventListener("input", renderXiang);
     $("#xiang-tabs").addEventListener("click", function (e) {
       var b = e.target.closest("button[data-x]"); if (!b) return;
@@ -642,7 +676,7 @@
     });
 
     // 歷史
-    $("#btn-history").addEventListener("click", function () { if (togglePanel("#panel-history")) renderHistory(); });
+    $("#btn-history").addEventListener("click", function () { navigate("history"); });
     $("#history-list").addEventListener("click", function (e) {
       var o = e.target.getAttribute("data-open"), d = e.target.getAttribute("data-del");
       if (o) { var rec = historyCache.filter(function (r) { return r.id === o; })[0]; if (rec) openRecord(rec); }
@@ -667,7 +701,7 @@
     });
 
     // 帳號
-    $("#btn-account").addEventListener("click", function () { togglePanel("#panel-account"); renderAccount(); });
+    $("#btn-account").addEventListener("click", function () { navigate("account"); });
     loadSupabase();
   }
 
@@ -691,5 +725,6 @@
   }
 
   init();
+  showView(viewFromHash(), true);
   initPwa();
 })();
