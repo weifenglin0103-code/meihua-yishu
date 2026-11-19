@@ -200,3 +200,14 @@ label.tone { color: var(--ink); }
 }
 @media (display-mode: standalone) { body { overscroll-behavior-y: none; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+
+/* 新版本提示橫幅（位於固定導覽列內，捲動時也看得到） */
+#update-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap;
+  margin: var(--s2) max(var(--s4), calc((100% - 820px) / 2 + var(--s4))) 0;   /* 與內容左右對齊 */
+  padding: var(--s2) var(--s3); background: var(--ink); color: var(--bg); border-radius: var(--radius);
+}
+#update-banner[hidden] { display: none !important; }
+.update-actions { display: flex; gap: var(--s2); }
+#update-banner button { background: transparent; color: var(--bg); border: 1px solid var(--bg); font-weight: 700; }
+#update-banner .primary-sm { background: var(--bg); color: var(--ink); }

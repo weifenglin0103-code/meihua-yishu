@@ -714,6 +714,7 @@
 
   // ---------- 事件綁定 ----------
   // ---------- 分頁（一次只顯示一頁；用網址 # 記錄，瀏覽器的返回鍵可用）----------
+  var refreshVersion = null;   // 由 initPwa 設定：重新讀取「目前版本」
   var VIEWS = ["home", "history", "xiang", "prefs", "account"];
   var currentView = "home";
   var VIEW_TITLES = { home: "梅花易數排盤", history: "歷史紀錄・梅花易數排盤", xiang: "類象查詢・梅花易數排盤", prefs: "設定・梅花易數排盤", account: "帳號・梅花易數排盤" };
@@ -734,6 +735,7 @@
     if (name === "history") renderHistory();
     if (name === "xiang") renderXiang();
     if (name === "account") renderAccount();
+    if (name === "prefs" && refreshVersion) refreshVersion();
     if (!initial) {
       // behavior:"instant" 會中斷進行中的平滑捲動（例如剛起卦完正在捲向結果時切頁）
       try { window.scrollTo({ top: 0, left: 0, behavior: "instant" }); } catch (e) { try { window.scrollTo(0, 0); } catch (e2) { /* 忽略 */ } }
@@ -844,11 +846,65 @@
 
   // ---------- PWA：離線快取與安裝 ----------
   function initPwa() {
-    if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
-      window.addEventListener("load", function () {
-        navigator.serviceWorker.register("sw.js").catch(function (e) { console.warn("Service Worker 註冊失敗", e); });
-      });
+    var swOk = "serviceWorker" in navigator && /^https?:$/.test(location.protocol);
+    var reg = null, updateRequested = false, reloading = false;
+
+    // 目前版本（取自快取名稱 meihua-vN，方便確認有沒有更新成功）
+    function showVersion() {
+      var el = $("#app-version"); if (!el) return;
+      if (!window.caches) { el.textContent = "未知（此瀏覽器不支援快取）"; return; }
+      caches.keys().then(function (ks) {
+        var v = ks.filter(function (k) { return /^meihua-v\d+$/.test(k); }).sort(function (a, b) { return +a.slice(8) - +b.slice(8); }).pop();
+        el.textContent = v ? "v" + v.slice(8) : "尚未快取（首次載入中）";
+      }).catch(function () { el.textContent = "未知"; });
     }
+
+    // 偵測到新版：顯示橫幅。按「立即更新」→ 通知新版接手 → 收到 controllerchange 後重新載入一次。
+    function showUpdate(worker) {
+      var warn = (last && !prefs.autosave) ? "（目前的結果尚未存入歷史紀錄，更新後會消失）" : "";
+      $("#update-msg").textContent = "有新版本可以使用。更新會重新載入畫面。" + warn;
+      $("#update-banner").hidden = false;
+      $("#update-now").onclick = function () {
+        updateRequested = true; $("#update-now").disabled = true; $("#update-now").textContent = "更新中…";
+        try { worker.postMessage({ type: "SKIP_WAITING" }); } catch (e) { /* 忽略 */ }
+        setTimeout(function () { if (!reloading) { reloading = true; location.reload(); } }, 4000);   // 保險：4 秒後仍未切換就直接重載
+      };
+      $("#update-later").onclick = function () { $("#update-banner").hidden = true; };
+    }
+    function checkForUpdate(manual) {
+      if (!reg) { if (manual) $("#check-update-msg").textContent = "目前無法檢查（離線、或尚未啟用離線功能）。"; return; }
+      if (manual) $("#check-update-msg").textContent = "檢查中…";
+      reg.update().then(function () {
+        if (reg.waiting && navigator.serviceWorker.controller) { showUpdate(reg.waiting); if (manual) $("#check-update-msg").textContent = "有新版本，請按畫面頂端的「立即更新」。"; }
+        else if (manual) $("#check-update-msg").textContent = "已是最新版本。";
+      }).catch(function () { if (manual) $("#check-update-msg").textContent = "檢查失敗（可能離線），稍後再試。"; });
+    }
+
+    if (swOk) {
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (!updateRequested || reloading) return;     // 首次安裝的接管不重載
+        reloading = true; location.reload();
+      });
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").then(function (r) {
+          reg = r;
+          if (r.waiting && navigator.serviceWorker.controller) showUpdate(r.waiting);   // 上次已下載好、尚未啟用的新版
+          r.addEventListener("updatefound", function () {
+            var nw = r.installing; if (!nw) return;
+            nw.addEventListener("statechange", function () {
+              if (nw.state === "installed" && navigator.serviceWorker.controller) showUpdate(nw);   // 首次安裝時沒有 controller，不會誤報
+            });
+          });
+          showVersion();
+        }).catch(function (e) { console.warn("Service Worker 註冊失敗", e); });
+      });
+      // 回到前景（切回 App）與每 30 分鐘檢查一次
+      document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") checkForUpdate(false); });
+      setInterval(function () { checkForUpdate(false); }, 30 * 60 * 1000);
+    }
+    $("#check-update").addEventListener("click", function () { checkForUpdate(true); });
+    refreshVersion = showVersion;
+    showVersion();
     var deferred = null;
     window.addEventListener("beforeinstallprompt", function (e) {
       e.preventDefault(); deferred = e; $("#btn-install").hidden = false;
