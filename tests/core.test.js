@@ -343,3 +343,26 @@ test("白話解讀：與計算結果一致（外應調整、月令提醒、先�
   assert.ok(found, "應該要存在偏吉但月令弱的組合");
   assert.equal(C.plainHex(49).theme, "變革"); assert.ok(C.plainHex(49).yao.length === 6);
 });
+
+test("白話校對：另有一說資料完整、索引有效，且校訂結果保留（抽樣核對自《周易譯注》的關鍵修正）", () => {
+  const B = require("../js/data-baihua.js");
+  assert.ok(Object.keys(B.ALT).length >= 80);
+  Object.keys(B.ALT).forEach(k => {
+    const [n, i] = k.split("-").map(Number);
+    assert.ok(n >= 1 && n <= 64 && i >= 0 && i <= Z.HEXAGRAMS[n - 1].yao.length, "ALT 索引 " + k);
+    assert.ok(B.ALT[k].length >= 6 && !/^另一種/.test(B.ALT[k]), "ALT 內容過短或帶重複前綴 " + k);
+  });
+  // 已知先前寫反或寫錯、校對後修正的關鍵爻
+  assert.ok(B.HEX[9][2][4].includes("鞋子破裂"));            // 履九五
+  assert.ok(B.HEX[11][2][4].includes("脆弱"));               // 否九五：苞桑是脆弱，不是牢靠
+  assert.ok(B.HEX[13][2][2].includes("宴席"));               // 大有九三：享宴席，不是獻財
+  assert.ok(B.HEX[10][2][1].includes("葫蘆"));               // 泰九二
+  assert.ok(B.HEX[5][2][1].includes("三百戶"));              // 訟九二
+  assert.ok(B.HEX[54][2][0] && B.HEX[54][2][0].length > 4);
+  // 另有一說要出現在 plainHex 取用結果
+  const p = C.plainHex(12);
+  assert.ok(p.altYao[4].includes("牢靠"));                   // 否九五的傳統讀法
+  assert.equal(p.altYao.length, 6);
+  assert.ok(C.plainHex(6).altGuaci.includes("俘虜"));
+  assert.equal(C.plainHex(1).altGuaci, "");                  // 沒有爭議的不憑空加
+});

@@ -377,14 +377,18 @@
   function symOf(tone) { return tone === "good" ? "▲" : (tone === "bad" ? "▼" : "●"); }   // 不只靠顏色
 
   // 白話行：只在「白話」開關開啟時顯示
-  function plainLine(t) { return prefs.show.plain && t ? '<span class="plain"><b>白話</b>：' + esc(t) + "</span>" : ""; }
+  function plainLine(t, alt) {
+    if (!prefs.show.plain || !t) return "";
+    return '<span class="plain"><b>白話</b>：' + esc(t) + "</span>" +
+      (alt ? '<span class="plain alt"><b>另有一說</b>：' + esc(alt) + "</span>" : "");
+  }
 
   function textBlock(info, dong) {
     var y = info.yao[dong - 1], ph = C.plainHex(info.n);
-    var out = "<blockquote><small>卦辭</small>" + esc(info.title) + "：" + esc(info.guaci) + plainLine(ph.guaci) + "</blockquote>";
+    var out = "<blockquote><small>卦辭</small>" + esc(info.title) + "：" + esc(info.guaci) + plainLine(ph.guaci, ph.altGuaci) + "</blockquote>";
     if (prefs.show.tuan) out += "<blockquote><small>彖傳</small>" + esc(info.tuan) + "</blockquote>";
     out += "<blockquote><small>大象</small>" + esc(info.daxiang) + "</blockquote>";
-    if (y) out += "<blockquote><small>動爻　" + esc(y.pos) + "</small>" + esc(y.text) + plainLine(ph.yao[dong - 1]) + "<br>象曰：" + esc(y.xiang) +
+    if (y) out += "<blockquote><small>動爻　" + esc(y.pos) + "</small>" + esc(y.text) + plainLine(ph.yao[dong - 1], ph.altYao[dong - 1]) + "<br>象曰：" + esc(y.xiang) +
       (y.note ? '<small class="suppl">校註：' + esc(y.note) + "</small>" : "") + "</blockquote>";
     return out;
   }
@@ -455,6 +459,7 @@
         '<ol class="path"><li><b>起點</b>' + esc(pn.ben) + '（' + esc(h.name.ben) + '）</li><li><b>過程</b>' + esc(pn.hu) + '（' + esc(h.name.hu) + '）</li><li><b>結局</b>' + esc(pn.bian) + '（' + esc(h.name.bian) + '）</li></ol>' +
         "<p>" + esc(sm.process) + esc(sm.ending) + "</p>" +
         "<h3>你現在的階段</h3><p>" + esc(sm.stage) + "。</p>" + (pyao ? '<p class="plain"><b>動爻白話</b>（' + esc(benInfo.yao[h.dong - 1].pos) + "）：" + esc(pyao) + "</p>" +
+          (ph0.altYao[h.dong - 1] ? '<p class="plain alt"><b>另有一說</b>：' + esc(ph0.altYao[h.dong - 1]) + "</p>" : "") +
           '<p class="muted">爻辭是這個階段的「提醒」，要和上面的整體判斷一起看：整體順利時，爻辭裡的警語就是該注意的地方；整體不順時，爻辭裡的好話就是可以抓住的轉機。</p>' : "") +
         "<h3>給你的建議</h3><ul class=\"advice\">" + sm.advice.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" +
         "<details><summary>名詞對照：體、用、互、變是什麼意思？</summary><dl class=\"terms\">" + sm.terms.map(function (t) { return "<dt>" + esc(t[0]) + "</dt><dd>" + esc(t[1]) + "</dd>"; }).join("") + "</dl>" +
@@ -527,9 +532,9 @@
 
     if (show.extra) {
       out += sect("extra", "互卦與變卦的卦辭", "互 " + h.name.hu + " · 變 " + h.name.bian,
-        "<h3>互卦：" + esc(h.name.hu) + "（事之中間）</h3><blockquote>" + esc(huInfo.title) + "：" + esc(huInfo.guaci) + plainLine(C.plainHex(h.num.hu).guaci) + "</blockquote>" +
+        "<h3>互卦：" + esc(h.name.hu) + "（事之中間）</h3><blockquote>" + esc(huInfo.title) + "：" + esc(huInfo.guaci) + plainLine(C.plainHex(h.num.hu).guaci, C.plainHex(h.num.hu).altGuaci) + "</blockquote>" +
         (show.tuan ? "<blockquote><small>彖傳</small>" + esc(huInfo.tuan) + "</blockquote>" : "") +
-        "<h3>變卦：" + esc(h.name.bian) + "（事之終結）</h3><blockquote>" + esc(bianInfo.title) + "：" + esc(bianInfo.guaci) + plainLine(C.plainHex(h.num.bian).guaci) + "</blockquote>" +
+        "<h3>變卦：" + esc(h.name.bian) + "（事之終結）</h3><blockquote>" + esc(bianInfo.title) + "：" + esc(bianInfo.guaci) + plainLine(C.plainHex(h.num.bian).guaci, C.plainHex(h.num.bian).altGuaci) + "</blockquote>" +
         (show.tuan ? "<blockquote><small>彖傳</small>" + esc(bianInfo.tuan) + "</blockquote>" : "") +
         "<blockquote><small>變卦大象</small>" + esc(bianInfo.daxiang) + "</blockquote>");
     }

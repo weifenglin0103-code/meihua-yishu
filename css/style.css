@@ -237,3 +237,7 @@ ul.advice li { margin: 4px 0; }
 .terms { display: grid; grid-template-columns: max-content 1fr; gap: var(--s1) var(--s3); font-size: var(--fs-sm); }
 .terms dt { font-weight: 700; }
 .terms dd { margin: 0; color: var(--muted); }
+
+/* 另有一說：與「白話」並列，但用虛線框與較淡底色區分，表示是補充的別種讀法 */
+.plain.alt { background: transparent; border: 1px dashed var(--line-strong); margin-top: 4px; }
+.plain.alt b { color: var(--muted); }

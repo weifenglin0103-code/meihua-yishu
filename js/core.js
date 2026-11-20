@@ -500,7 +500,12 @@
   }
 
   // 某一卦的白話（供畫面取用）：{ theme, guaci, yao: [..] }
-  function plainHex(n) { var x = B.HEX[n - 1]; return { theme: x[0], guaci: x[1], yao: x[2] }; }
+  function plainHex(n) {
+    var x = B.HEX[n - 1], alt = B.ALT || {};
+    // altYao[i] = 第 i+1 爻的「另有一說」（沒有則為 ""）；altGuaci = 卦辭的另有一說
+    return { theme: x[0], guaci: x[1], yao: x[2], altGuaci: alt[n + "-0"] || "",
+             altYao: x[2].map(function (_, i) { return alt[n + "-" + (i + 1)] || ""; }) };
+  }
 
   // ---------- 一次完成：起卦結果 + 建卦 + 月令 + 分析 + 十應 + 綜合 ----------
   function cast(divination, whenDate, monthMode, yingInputs) {
